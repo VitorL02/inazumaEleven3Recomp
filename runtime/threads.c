@@ -164,11 +164,14 @@ static void task_entry(void) {
     Cpu *c = g_cpu_main;
     int idx = g_task_running;
     uint32_t sp = rd32(c, TASK_SP + idx * 4);
-    /* o quadro inicial montado por 0206ef20 tem 14 palavras; o trampolim 0206eef8 chama a função */
+    /* o quadro inicial montado por 0206ef20 tem 14 palavras: [0] = 0206ee98 (restaurador), [1..12] = r0..r11
+     * (r0 = argumento da tarefa), [13] = alvo (o trampolim 0206eef8, que chama a função da tarefa) */
+    for (int i = 0; i < 12; i++) c->r[i] = rd32(c, sp + 4 + i * 4);
+    uint32_t target = rd32(c, sp + 13 * 4);
     c->r[13] = sp + 14 * 4;
     c->rsp = 0;
     c->r[14] = 0;
-    rt_call(c, 0x0206eef8u); /* termina em hle_Task_Finish, que não volta */
+    rt_call(c, target); /* termina em hle_Task_Finish, que não volta */
     rt_fatal(c, "tarefa voltou depois de terminar", idx);
 }
 /* troca da fibra atual para `to`, passando a ela a identidade (ctx) da thread do SDK */

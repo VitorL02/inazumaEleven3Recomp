@@ -618,6 +618,17 @@ class Ctx:
                 if self.funcs_of(m).get(target, True):
                     self.new_funcs.add((m.name, target))  # função nova achada por BL
                 return f"f_{m.name}_{target:08x}"
+        # BL de um overlay para outro (ex.: ov000 chamando o ov016, que fica residente): não dá para saber
+        # qual overlay estará carregado, então a chamada fica dinâmica (rt_call), mas a função é gerada em
+        # todo overlay que cobre o alvo e não se sobrepõe a quem chama
+        if frm.kind == "overlay":
+            for m in self.mods.values():
+                if m.kind != "overlay" or m is frm or not m.has(target):
+                    continue
+                if m.ram < frm.ram + len(frm.data) and frm.ram < m.ram + len(m.data):
+                    continue
+                if (m.name, target) not in self.hle and self.funcs_of(m).get(target, True):
+                    self.spec_funcs.add((m.name, target))
         return None
 
 
@@ -640,13 +651,20 @@ def main():
     done = set()
     generated = []
     stats = collections.Counter()
+    ctx.spec_funcs = set()
+    spec = set()  # palpites (alvos de BL entre overlays): descartados se não parecem código
     while todo:
         m, a = todo.pop()
         if (m, a) in done or (m, a) in ctx.hle or m not in mods or not mods[m].has(a):
             continue
-        done.add((m, a))
+        is_spec = (m, a) in spec
         g = FuncGen(mods[m], a, ctx)
+        ctx.new_funcs.clear(); ctx.spec_funcs.clear()
         name, code = g.generate()
+        if is_spec and g.unimpl:
+            stats["spec_drop"] += 1
+            continue
+        done.add((m, a))
         generated.append((m, a, name, code))
         stats["funcs"] += 1
         stats["insns"] += len(g.insns)
@@ -654,7 +672,39 @@ def main():
         for nm, na in list(ctx.new_funcs):
             if (nm, na) not in done:
                 todo.append((nm, na))
-        ctx.new_funcs.clear()
+                if is_spec and (nm, na) not in done: spec.add((nm, na))
+        for nm, na in list(ctx.spec_funcs):
+            if (nm, na) not in done:
+                todo.append((nm, na)); spec.add((nm, na))
+        ctx.new_funcs.clear(); ctx.spec_funcs.clear()
+    # palpites que chamam (por nome) uma função descartada também saem; uma função de verdade que chame
+    # algo descartado faz o descartado ser gerado mesmo assim
+    import re as _re
+    ref_re = _re.compile(r"\b(f_[a-z0-9]+_[0-9a-f]{8})\(c\)")
+    while True:
+        names = {name for _, _, name, _ in generated} | set(ctx.hle.values())
+        drop, force = set(), set()
+        for m, a, name, code in generated:
+            miss = [r for r in ref_re.findall(code) if r not in names]
+            if not miss:
+                continue
+            if (m, a) in spec:
+                drop.add(name)
+            else:
+                force.update(miss)
+        if not drop and not force:
+            break
+        generated = [g for g in generated if g[2] not in drop]
+        stats["spec_drop"] += len(drop)
+        for n in force:
+            _, mn, ad = n.split("_")
+            g = FuncGen(mods[mn], int(ad, 16), ctx)
+            ctx.new_funcs.clear(); ctx.spec_funcs.clear()
+            nm, code = g.generate()
+            spec.discard((mn, int(ad, 16)))
+            generated.append((mn, int(ad, 16), nm, code))
+            stats["forced"] += 1
+    stats["funcs"] = len(generated)
     generated.sort()
     names = {name for _, _, name, _ in generated} | set(ctx.hle.values())
 

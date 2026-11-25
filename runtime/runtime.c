@@ -538,6 +538,16 @@ void rt_call(Cpu *c, uint32_t target) {
         rt_fatal(c, "nenhuma função conhecida em", target);
     }
     if (g_trace) fprintf(stderr, "[call] %08x\n", target);
+    /* RECOMP_WATCH=end1,end2,...: registra chamadas a esses endereços (até 40 vezes cada) */
+    static uint32_t watch[16]; static int nwatch = -1, wcount[16];
+    if (nwatch < 0) {
+        nwatch = 0;
+        const char *w = getenv("RECOMP_WATCH");
+        while (w && *w && nwatch < 16) { char *e; watch[nwatch++] = (uint32_t)strtoul(w, &e, 16); w = *e ? e + 1 : e; }
+    }
+    for (int i = 0; i < nwatch; i++)
+        if (watch[i] == target && wcount[i]++ < 40)
+            fprintf(stderr, "[watch] q%llu %08x r0=%08x r1=%08x r2=%08x r3=%08x lr=%08x\n", (unsigned long long)g_frame, target, c->r[0], c->r[1], c->r[2], c->r[3], ret);
     static int spcheck = -1;
     if (spcheck < 0) spcheck = getenv("RECOMP_SPCHECK") != NULL;
     uint32_t sp0 = c->r[13];
