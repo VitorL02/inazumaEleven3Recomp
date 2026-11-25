@@ -151,7 +151,7 @@ static void sdl_events(void) {
         case SDL_QUIT: exit(0);
         case SDL_KEYDOWN: case SDL_KEYUP:
             if (e.key.repeat) break;
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) exit(0);
+            /* Esc não fecha mais o jogo (fechava sem querer); para sair, feche a janela (Alt+F4) */
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F11) { g_cfg.fullscreen ^= 1; SDL_SetWindowFullscreen(g_win, g_cfg.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0); break; }
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_TAB) { g_swap ^= 1; break; }
             if (e.key.keysym.sym == SDLK_SPACE) { g_turbo = e.type == SDL_KEYDOWN; snd_set_turbo(g_turbo); break; }

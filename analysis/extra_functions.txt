@@ -80,8 +80,6 @@ arm9 02000d0c arm
 arm9 0201fac0 arm
 ov000 020bdbe8 arm
 arm9 0201fa60 arm
-arm9 0201fa60 arm
-arm9 0201fa60 arm
-arm9 0201fa60 arm
 arm9 0201fa30 arm
 arm9 0201fa90 arm
+ov016 020f1310 arm

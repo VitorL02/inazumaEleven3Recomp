@@ -490,7 +490,7 @@ static void draw_ctrl(int px, int py) {
         keycap(cx + 110, ry, rows[i][1]);
     }
     int y = py + 266, x = px + 26;
-    static const char *extra[][2] = {{"Espaço", "acelera"}, {"Tab", "troca a tela"}, {"F11", "tela cheia"}, {"Esc", "sai"}};
+    static const char *extra[][2] = {{"Espaço", "acelera"}, {"Tab", "troca a tela"}, {"F11", "tela cheia"}, {"Alt+F4", "sai"}};
     for (int i = 0; i < 4; i++) {
         x += keycap(x, y, extra[i][0]) + 8;
         text(FONT_SMALL, x, y + 3, extra[i][1], C_DIM, 255);
