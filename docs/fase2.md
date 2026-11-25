@@ -41,7 +41,7 @@ runtime/*.c + build/gen ──make──> build/ie3
 |---|---|
 | `runtime.h` | acesso à memória (caminho rápido para a RAM principal), flags, deslocamentos |
 | `runtime.c` | mapa de memória, I/O, divisor/raiz por hardware, DMA, timers, IRQ, cartão, PXI/ARM7 em HLE, save, despacho de funções, overlays |
-| `threads.c` | threads do SDK como fibras do host (`ucontext`), substituindo `OSi_RescheduleThread` |
+| `threads.c` | threads do SDK como fibras do host (`hostfiber.c`: ucontext ou Fibers do Win32), substituindo `OSi_RescheduleThread` |
 | `thumb.c` | interpretador Thumb (o jogo só tem ~60 funções Thumb) |
 | `video.c` | bancos de VRAM e os dois motores 2D (BGs de texto/afins/bitmap, sprites, paletas estendidas, brilho mestre) |
 | `main.c` | monta a memória como o bootloader deixaria, chama o `crt0`, grava quadros ou abre a janela |
@@ -116,6 +116,7 @@ Próximo: depois de "Novo Jogo" aparece o aviso de save adulterado; ver por que 
   RECOMP_MUDO desliga o áudio.
 - Sem janelas no vídeo 2D (o blending é simples); vídeos Mobiclip pulados.
 - O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
-- Só compila em Linux/macOS por enquanto: as threads do jogo usam `ucontext`; no Windows será preciso trocar por Fibers.
+- Windows: `make windows` (MinGW) gera `build-win/ie3.exe`; o que muda por sistema fica em `platform.c` e `hostfiber.c`.
+  O .exe compila, mas ainda não foi executado num Windows de verdade (o Wine não roda neste ambiente).
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.
 - 138 instruções sem suporte no código gerado (quase todas em "funções" falsas achadas por ponteiros em dados).

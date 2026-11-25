@@ -11,6 +11,7 @@
 #include <time.h>
 #include "gx.h"
 #include "video.h"
+#include "platform.h"
 
 uint16_t g_gx_color[256 * 192];
 uint8_t g_gx_alpha[256 * 192];
@@ -633,12 +634,11 @@ void gx_vblank(const uint8_t *io) {
     g_npolys[g_cur] = 0;
     static int log = -1; static double acc; static int frames;
     if (log < 0) log = getenv("RECOMP_GXLOG") != NULL;
-    struct timespec t0, t1;
-    if (log) clock_gettime(CLOCK_MONOTONIC, &t0);
+    double t0 = 0;
+    if (log) t0 = plat_now();
     render(io, done, g_swap_param);
     if (log) {
-        clock_gettime(CLOCK_MONOTONIC, &t1);
-        acc += (t1.tv_sec - t0.tv_sec) * 1e3 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+        acc += (plat_now() - t0) * 1e3;
         if (++frames % 60 == 0) { fprintf(stderr, "[gx] %d polígonos, %.2f ms por quadro\n", g_npolys[done], acc / 60); acc = 0; }
     }
 }

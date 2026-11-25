@@ -4,18 +4,13 @@
  * A arte do jogo mostrada na aba Jogar NÃO vem do repositório: quando a ROM é verificada, o launcher
  * roda o próprio recomp sem janela até a tela título (ie3 --capturar-titulo) e guarda a imagem num
  * cache ao lado do .ini. Tudo o que é do jogo sai da ROM do usuário. */
-#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <spawn.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <signal.h>
 #include <time.h>
+#include "platform.h"
 #include "launcher.h"
 #include "config.h"
 #include "rom.h"
@@ -41,7 +36,7 @@ static char g_self[1024];
 /* arte capturada da ROM (tela de cima, 256x192) */
 static uint32_t g_art[256 * 192];
 static int g_art_ok;
-static pid_t g_art_pid;
+static intptr_t g_art_pid;
 static char g_art_path[1200];
 static time_t g_art_started;
 
@@ -273,14 +268,9 @@ static void start_art_capture(void) {
     /* outra captura em andamento (outro launcher aberto)? */
     char tmp[1300]; struct stat st; snprintf(tmp, sizeof tmp, "%s.tmp", g_art_path);
     if (stat(tmp, &st) == 0 && time(NULL) - st.st_mtime < 90) return;
-    extern char **environ;
-    char *argv[] = {"ie3", "--capturar-titulo", g_art_path, "--config", (char *)g_cfg_path, NULL};
-    posix_spawn_file_actions_t fa;
-    posix_spawn_file_actions_init(&fa);
-    posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
-    if (posix_spawn(&g_art_pid, g_self, &fa, NULL, argv, environ) != 0) g_art_pid = 0;
-    else g_art_started = time(NULL);
-    posix_spawn_file_actions_destroy(&fa);
+    const char *argv[] = {"ie3", "--capturar-titulo", g_art_path, "--config", g_cfg_path, NULL};
+    g_art_pid = plat_spawn_quiet(g_self, argv);
+    if (g_art_pid) g_art_started = time(NULL);
 }
 static void check_rom(void) {
     g_art_ok = 0;
@@ -299,13 +289,12 @@ static void check_rom(void) {
 void launcher_tick(void) {
     if (!g_rom_ok || g_art_ok || !g_art_pid) return;
     struct stat st;
-    int status;
-    if (stat(g_art_path, &st) == 0 && load_art()) { waitpid(g_art_pid, &status, WNOHANG); g_art_pid = 0; return; }
-    if (waitpid(g_art_pid, &status, WNOHANG) == g_art_pid) { g_art_pid = 0; if (!load_art()) g_art_started = 0; return; }
-    if (time(NULL) - g_art_started > 60) { kill(g_art_pid, SIGKILL); g_art_pid = 0; g_art_started = 0; }
+    if (stat(g_art_path, &st) == 0 && load_art()) { plat_proc_done(g_art_pid); g_art_pid = 0; return; }
+    if (plat_proc_done(g_art_pid)) { g_art_pid = 0; if (!load_art()) g_art_started = 0; return; }
+    if (time(NULL) - g_art_started > 60) { plat_proc_kill(g_art_pid); g_art_pid = 0; g_art_started = 0; }
 }
 void launcher_wait_art(int secs) {
-    for (int i = 0; i < secs * 10 && g_art_pid && !g_art_ok; i++) { launcher_tick(); usleep(100000); }
+    for (int i = 0; i < secs * 10 && g_art_pid && !g_art_ok; i++) { launcher_tick(); plat_sleep(0.1); }
 }
 
 void launcher_init(const char *self_exe) {
@@ -331,7 +320,7 @@ static void change_row(int row, int d) {
 static int try_play(void) {
     if (!g_rom_ok) { g_tab = TAB_PLAY; return LAUNCH_CONTINUE; }
     config_save(&g_cfg, g_cfg_path);
-    if (g_art_pid) { kill(g_art_pid, SIGKILL); g_art_pid = 0; }
+    if (g_art_pid) { plat_proc_kill(g_art_pid); g_art_pid = 0; }
     return LAUNCH_PLAY;
 }
 static int activate_tab(int t) {

@@ -3,13 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include "runtime.h"
+#include "platform.h"
+#ifndef _WIN32
 #include <signal.h>
 #include <unistd.h>
+#include <sys/time.h>
+#endif
 
 static Cpu *g_cpu;
 void rt_backtrace(Cpu *c);
-/* RECOMP_PROFILE: amostra o endereço de retorno no topo da pilha a cada 1 ms */
-#include <sys/time.h>
+/* RECOMP_PROFILE: amostra o endereço de retorno no topo da pilha a cada 1 ms (só Linux/macOS) */
 #define PROF_N 4096
 static uint32_t g_prof_addr[PROF_N], g_prof_cnt[PROF_N];
 static void on_prof(int sig) {
@@ -35,6 +38,7 @@ static void prof_dump(void) {
         fprintf(stderr, "\n");
     }
 }
+#ifndef _WIN32
 static void on_alarm(int sig) {
     (void)sig;
     fprintf(stderr, "\n[recomp] watchdog: travado. Último lr=%08x sp=%08x\n", g_cpu->r[14], g_cpu->r[13]);
@@ -44,6 +48,7 @@ static void on_alarm(int sig) {
     if (getenv("RECOMP_PROFILE")) prof_dump();
     _exit(2);
 }
+#endif
 
 void rt_init_dispatch(void);
 void f_arm9_02000800(Cpu *c);  /* _start (crt0) */
@@ -63,7 +68,7 @@ const uint8_t *rt_io(void);
 static uint32_t g_fb[256 * 384];
 static int g_swap; /* com "só uma tela": Tab mostra a de baixo */
 
-static double now_sec(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
+static double now_sec(void) { return plat_now(); }
 /* Limite de quadros: espera até a hora do próximo quadro. */
 static void frame_pace(void) {
     static double next;
@@ -72,7 +77,7 @@ static void frame_pace(void) {
     if (next == 0 || t - next > 0.25) next = t; /* atrasou demais: não tenta compensar */
     next += per;
     double wait = next - now_sec();
-    if (wait > 0) { struct timespec ts = {(time_t)wait, (long)((wait - (time_t)wait) * 1e9)}; nanosleep(&ts, NULL); }
+    plat_sleep(wait);
 }
 
 /* Tamanho lógico da imagem do jogo conforme o layout */
@@ -177,7 +182,7 @@ void video_present(void) {
         if (f) {
             fprintf(f, "P6\n256 192\n255\n");
             for (int i = 0; i < 256 * 192; i++) { uint8_t px[3] = {g_fb[i] >> 16, g_fb[i] >> 8, g_fb[i]}; fwrite(px, 1, 3, f); }
-            fclose(f); rename(tmp, g_capture_path);
+            fclose(f); remove(g_capture_path); rename(tmp, g_capture_path);
         }
         _exit(0);
     }
@@ -307,8 +312,7 @@ static void usage(const char *p) {
 
 int main(int argc, char **argv) {
     const char *rom_arg = NULL; int skip_launcher = 0;
-    { ssize_t n = readlink("/proc/self/exe", g_self_exe, sizeof g_self_exe - 1);
-      if (n > 0) g_self_exe[n] = 0; else if (!realpath(argv[0], g_self_exe)) snprintf(g_self_exe, sizeof g_self_exe, "%s", argv[0]); }
+    if (plat_self_exe(g_self_exe, sizeof g_self_exe)) snprintf(g_self_exe, sizeof g_self_exe, "%s", argv[0]);
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--config") && i + 1 < argc) g_cfg_path = argv[++i];
     config_defaults(&g_cfg);
     config_load(&g_cfg, g_cfg_path);
@@ -364,12 +368,14 @@ int main(int argc, char **argv) {
     c->mode = 0x13; c->I = 1; c->F = 1;
     c->r[13] = 0x02FFFC00; c->r[14] = 0xFFFF0000u;
     g_cpu = c;
-    if (g_capture_path) alarm(90); /* captura da arte: nunca fica pendurada */
+#ifndef _WIN32
+    if (g_capture_path) alarm(90); /* captura da arte: nunca fica pendurada (no Windows o launcher mata em 60 s) */
     if (getenv("RECOMP_WATCHDOG")) { signal(SIGALRM, on_alarm); alarm(atoi(getenv("RECOMP_WATCHDOG"))); }
     if (getenv("RECOMP_PROFILE")) {
         signal(SIGPROF, on_prof);
         struct itimerval it = {{0, 1000}, {0, 1000}}; setitimer(ITIMER_PROF, &it, NULL);
     }
+#endif
     rt_init_dispatch();
     fprintf(stderr, "[recomp] ROM ok (%s), iniciando _start em 02000800\n", g_romfile.sha1);
     c->rs[c->rsp++] = 0xFFFF0000u;

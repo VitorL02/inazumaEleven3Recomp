@@ -18,6 +18,27 @@ make gen && make -j4 SDL=1     # precisa de SDL2 (Linux: libsdl2-dev)
 ./build/ie3 rom.nds --jogar    # ou direto, sem o launcher
 ```
 
+### Windows
+
+O código do jogo traduzido para C sai da sua ROM, então o `ie3.exe` é gerado na sua máquina (nada do jogo fica no repositório).
+Dá para compilar de duas formas:
+
+- **No Windows, com MSYS2** (terminal "MSYS2 MINGW64"):
+  ```bash
+  pacman -S --needed make python python-pip mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2
+  pip install capstone ndspy
+  python -I tools/extract.py rom.nds extracted
+  make gen && make -j4 WIN=1 SDL_DIR=/mingw64 EXE=.exe BUILD=build-win
+  ```
+- **No Linux, para Windows** (MinGW + o pacote `SDL2-devel-<versão>-mingw.tar.gz` do SDL2):
+  ```bash
+  sudo apt install mingw-w64
+  make gen && make windows -j4 SDL_DIR=<pasta do SDL2>/x86_64-w64-mingw32
+  ```
+
+O resultado fica em `build-win/` (`ie3.exe` e `SDL2.dll`). No Windows as threads do jogo usam Fibers do Win32 e a ROM é mapeada com `CreateFileMapping`
+(ver `runtime/platform.c` e `runtime/hostfiber.c`). `WIN_CONSOLE=1` abre um console com o log.
+
 O launcher segue o estilo dos launchers de recomp: menu lateral (Jogar, Gráficos, Controles, Sobre) e funciona com mouse ou teclado.
 Na primeira vez ele pede a ROM: arraste o arquivo `.nds` para a janela (ou passe o caminho na linha de comando).
 Ele confere se é a versão certa pelo SHA-1 e mostra a tela título do jogo, **gerada da sua ROM**: o launcher roda o próprio recomp sem janela até a tela título (`ie3 --capturar-titulo`) e guarda a imagem em `ie3_titulo_<sha>.ppm` ao lado do `.ini`. Nenhuma arte do jogo fica no repositório.

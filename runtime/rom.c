@@ -3,10 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "rom.h"
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
+#include "platform.h"
 int g_rom_skip_sha;
 
 Rom g_romfile;
@@ -76,20 +73,17 @@ static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; 
 static char g_rom_path[1024];
 int rom_open(const char *path, char *err, size_t errsz) {
     if (g_romfile.data && !strcmp(path, g_rom_path)) return 0; /* já carregada e validada */
-    if (g_romfile.data) { munmap(g_romfile.data, g_romfile.size); memset(&g_romfile, 0, sizeof g_romfile); g_rom_path[0] = 0; }
+    if (g_romfile.data) { plat_unmap_file(g_romfile.data, g_romfile.size); memset(&g_romfile, 0, sizeof g_romfile); g_rom_path[0] = 0; }
     /* mapeada, não copiada: 512 MB só entram na memória conforme o jogo lê */
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) { snprintf(err, errsz, "não consegui abrir o arquivo"); return -1; }
-    struct stat st;
-    if (fstat(fd, &st) || st.st_size < 0x4000) { close(fd); snprintf(err, errsz, "arquivo pequeno demais para ser uma ROM de DS"); return -1; }
+    size_t size = 0;
+    const uint8_t *m = plat_map_file(path, &size);
+    if (!m) { snprintf(err, errsz, "não consegui abrir o arquivo"); return -1; }
+    if (size < 0x4000) { plat_unmap_file(m, size); snprintf(err, errsz, "arquivo pequeno demais para ser uma ROM de DS"); return -1; }
     Rom *r = &g_romfile;
-    void *m = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd);
-    if (m == MAP_FAILED) { snprintf(err, errsz, "não consegui ler o arquivo"); return -1; }
-    r->data = m; r->size = st.st_size;
+    r->data = m; r->size = size;
     if (memcmp(r->data + 12, EXPECTED_CODE, 4)) {
         snprintf(err, errsz, "esta ROM não é Inazuma Eleven 3 (código %.4s, esperado %s)", (char *)r->data + 12, EXPECTED_CODE);
-        munmap(r->data, r->size); r->data = NULL;
+        plat_unmap_file(r->data, r->size); r->data = NULL;
         return -1;
     }
     if (g_rom_skip_sha) memcpy(r->sha1, "a70e9a336f6ea8ff78003938dcd024533f034a68", 41); /* captura da arte: o launcher já conferiu */

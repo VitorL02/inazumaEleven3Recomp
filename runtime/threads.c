@@ -1,15 +1,14 @@
-/* Threads do NitroSDK (OSThread) mapeadas em fibras do host (ucontext).
+/* Threads do NitroSDK (OSThread) mapeadas em fibras do host (ucontext ou Fibers do Win32, ver hostfiber.c).
  *
  * No DS, a troca de thread é feita por OS_SaveContext/OS_LoadContext, que funcionam
  * como setjmp/longjmp sobre os registradores do ARM. Em código recompilado a pilha
  * do C também precisa ser trocada, então cada thread do jogo ganha uma fibra do host.
  * A função OSi_RescheduleThread (02001728) é substituída inteira por hle_OSi_RescheduleThread.
  */
-#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ucontext.h>
+#include "hostfiber.h"
 #include "runtime.h"
 
 void rt_fatal(Cpu *c, const char *msg, uint32_t a) __attribute__((noreturn));
@@ -21,7 +20,7 @@ void rt_fatal(Cpu *c, const char *msg, uint32_t a) __attribute__((noreturn));
 
 typedef struct {
     uint32_t ctx;     /* endereço do OSContext (= OSThread) no DS */
-    ucontext_t uc;
+    HostCtx uc;
     Cpu saved;        /* estado da CPU quando a fibra foi suspensa */
     int used;
 } Fiber;
@@ -65,17 +64,13 @@ static void fiber_switch(Cpu *c, uint32_t from, uint32_t to) {
     me->saved = *c;
     if (!next) {
         next = fiber_new(to);
-        getcontext(&next->uc);
-        next->uc.uc_stack.ss_sp = malloc(FIBER_STACK);
-        next->uc.uc_stack.ss_size = FIBER_STACK;
-        next->uc.uc_link = NULL;
-        makecontext(&next->uc, fiber_entry, 0);
+        hostctx_prepare(&next->uc, fiber_entry, FIBER_STACK);
         g_cur = next;
-        swapcontext(&me->uc, &next->uc);
+        hostctx_swap(&me->uc, &next->uc);
     } else {
         g_cur = next;
         *c = next->saved;
-        swapcontext(&me->uc, &next->uc);
+        hostctx_swap(&me->uc, &next->uc);
     }
     /* voltamos: alguém trocou para nós */
     *c = me->saved;
@@ -156,9 +151,7 @@ static int g_task_running = -1;
 
 static Fiber *fiber_alloc_task(void) {
     for (int i = 0; i < MAX_FIBERS; i++) if (g_fibers[i].used == 2) { g_fibers[i].used = 1; return &g_fibers[i]; } /* reaproveita pilha */
-    Fiber *f = fiber_new(0);
-    f->uc.uc_stack.ss_sp = NULL;
-    return f;
+    return fiber_new(0);
 }
 static void task_entry(void) {
     Cpu *c = g_cpu_main;
@@ -180,16 +173,9 @@ static void task_swap(Cpu *c, Fiber *to, int fresh) {
     to->ctx = me->ctx; me->ctx = 0;
     me->saved = *c;
     g_cur = to;
-    if (fresh) {
-        getcontext(&to->uc);
-        if (!to->uc.uc_stack.ss_sp) to->uc.uc_stack.ss_sp = malloc(FIBER_STACK);
-        to->uc.uc_stack.ss_size = FIBER_STACK;
-        to->uc.uc_link = NULL;
-        makecontext(&to->uc, task_entry, 0);
-    } else {
-        *c = to->saved;
-    }
-    swapcontext(&me->uc, &to->uc);
+    if (fresh) hostctx_prepare(&to->uc, task_entry, FIBER_STACK);
+    else *c = to->saved;
+    hostctx_swap(&me->uc, &to->uc);
     *c = me->saved;
 }
 static void ensure_main_fiber(Cpu *c) {
