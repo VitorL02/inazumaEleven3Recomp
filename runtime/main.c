@@ -169,6 +169,11 @@ void video_present(void) {
     if (want_win) frame_pace();
     if (!want_dump && !want_win) return;
     video_render(rt_io(), g_fb, g_fb + 256 * 192);
+    if (want_dump && getenv("RECOMP_VIDLOG")) {
+        const uint8_t *io = rt_io();
+        uint32_t dA, dB; uint16_t mbA, mbB; memcpy(&dA, io, 4); memcpy(&dB, io + 0x1000, 4); memcpy(&mbA, io + 0x6C, 2); memcpy(&mbB, io + 0x106C, 2);
+        fprintf(stderr, "[video] quadro %llu DISPCNT A=%08x B=%08x brilho A=%04x B=%04x\n", (unsigned long long)g_frame, dA, dB, mbA, mbB);
+    }
     if (want_dump) {
         char path[600]; snprintf(path, sizeof path, "%s/frame_%06llu.ppm", dump, (unsigned long long)g_frame);
         FILE *f = fopen(path, "wb");

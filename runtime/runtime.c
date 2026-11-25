@@ -170,7 +170,11 @@ static void card_backup_request(Cpu *c, uint32_t req) {
     save_load();
     uint32_t a = g_card_cmdarg;
     uint32_t src = rd32(c, a + 0xC), dst = rd32(c, a + 0x10), len = rd32(c, a + 0x14);
-    if (getenv("RECOMP_SAVELOG")) fprintf(stderr, "[save] pedido %u src=%08x dst=%08x len=%x\n", req, src, dst, len);
+    if (getenv("RECOMP_SAVELOG")) {
+        fprintf(stderr, "[save] pedido %u src=%08x dst=%08x len=%x  (de", req, src, dst, len);
+        for (int k = c->rsp - 1; k >= 0 && k >= c->rsp - 10; k--) fprintf(stderr, " %08x", c->rs[k]);
+        fprintf(stderr, ")  cmdarg=%08x comum=%08x\n", a, rd32(c, rd32(c, 0x02095c20)));
+    }
     switch (req) {
     case 6: /* READ_BACKUP: src = endereço no save */
         for (uint32_t i = 0; i < len; i++) wr8(c, dst + i, g_save[(src + i) & (sizeof g_save - 1)]);
@@ -213,8 +217,18 @@ static void arm7_hle_receive(Cpu *c, uint32_t w) {
         card_backup_request(c, data);
         break;
     case 7: { /* som: o ARM7 "processou" a lista de comandos */
+        if (getenv("RECOMP_SNDLOG") && data) {
+            uint32_t cmd = 0x02000000u | data;
+            for (int n = 0; cmd && n < 64; n++) {
+                fprintf(stderr, "[snd] q%llu cmd %u args %08x %08x %08x %08x\n", (unsigned long long)g_frame, rd32(c, cmd + 4), rd32(c, cmd + 8), rd32(c, cmd + 12), rd32(c, cmd + 16), rd32(c, cmd + 20));
+                cmd = rd32(c, cmd);
+            }
+        }
         uint32_t sw = rd32(c, SND_SHARED_WORK_PTR);
+        if (getenv("RECOMP_SNDLOG")) fprintf(stderr, "[snd] q%llu sharedwork var=%08x tag antes=%u\n", (unsigned long long)g_frame, sw, sw ? rd32(c, sw) : 0);
         if (sw) wr32(c, sw, rd32(c, sw) + 1);
+        /* o ARM7 devolve a lista processada pelo mesmo canal; o ARM9 recicla os comandos ao recebê-la */
+        if (data) fifo_push_rx(c, (data << 6) | 7);
         break; }
     }
     (void)fifo_push_rx;
