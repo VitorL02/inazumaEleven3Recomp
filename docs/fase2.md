@@ -108,7 +108,13 @@ Próximo: depois de "Novo Jogo" aparece o aviso de save adulterado; ver por que 
   neblina, testes de caixa/posição. Faltam polígonos de sombra, marcação de bordas e antisserrilhado.
 - O envio assíncrono de comandos 3D (MI_SendGXCommandAsync) depende da IRQ do GXFIFO, que aqui é por nível
   (o FIFO está sempre vazio); `rt_check_irq` repete enquanto houver IRQ pendente.
-- Sem janelas no vídeo 2D (o blending é simples); sem som; vídeos Mobiclip pulados.
+- Som (`runtime/snd.c`): o jogo tem um driver de som próprio no ARM9 que usa os canais do SND diretamente
+  (LOCK_CHANNEL em todos) e é acordado por um alarme do ARM7 a cada 10 ms. O HLE executa as listas de
+  comandos (SETUP_CHANNEL_PCM/PSG/NOISE, START/STOP_TIMER, CHANNEL_TIMER/VOLUME/PAN, SETUP_ALARM), manda os
+  alarmes pelo PXI (alarme | id << 8, canal 7), mantém o channelStatus do SNDSharedWork e mixa em 32768 Hz.
+  O timer do comando já é o divisor (o ARM7 grava 0x10000 - timer). RECOMP_WAV=arquivo.wav grava a saída;
+  RECOMP_MUDO desliga o áudio.
+- Sem janelas no vídeo 2D (o blending é simples); vídeos Mobiclip pulados.
 - O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
 - Só compila em Linux/macOS por enquanto: as threads do jogo usam `ucontext`; no Windows será preciso trocar por Fibers.
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.

@@ -54,6 +54,7 @@ static void put32(uint32_t a, uint32_t v) { memcpy(g_main + (a & 0x3FFFFF), &v, 
 #include <time.h>
 #include "video.h"
 #include "rom.h"
+#include "snd.h"
 #include "config.h"
 #include "launcher.h"
 extern uint64_t g_frame;
@@ -83,8 +84,26 @@ static void layout_size(int *w, int *h) {
 #ifdef HAVE_SDL2
 #include <SDL2/SDL.h>
 static SDL_Window *g_win; static SDL_Renderer *g_ren; static SDL_Texture *g_tex;
+static void audio_cb(void *ud, Uint8 *stream, int len) {
+    (void)ud;
+    int16_t *out = (int16_t *)stream; int frames = len / 4;
+    int n = snd_read(out, frames);
+    if (n < frames) memset(out + n * 2, 0, (size_t)(frames - n) * 4);
+}
+static void sdl_audio(void) {
+    static int opened;
+    if (opened || getenv("RECOMP_MUDO")) return;
+    opened = 1;
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) return;
+    SDL_AudioSpec want = {0}, have;
+    want.freq = SND_RATE; want.format = AUDIO_S16SYS; want.channels = 2; want.samples = 1024; want.callback = audio_cb;
+    SDL_AudioDeviceID dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (dev) SDL_PauseAudioDevice(dev, 0);
+    else fprintf(stderr, "[recomp] sem saída de áudio: %s\n", SDL_GetError());
+}
 static void sdl_window(int w, int h, int scale) {
     SDL_Init(SDL_INIT_VIDEO);
+    sdl_audio();
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, g_cfg.smooth ? "1" : "0");
     Uint32 fl = SDL_WINDOW_RESIZABLE | (g_cfg.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
     SDL_Rect ub; /* escala maior que a tela: reduz até caber */

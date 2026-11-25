@@ -8,6 +8,7 @@
 #include "video.h"
 #include "rom.h"
 #include "gx.h"
+#include "snd.h"
 
 uint8_t g_main[4 << 20];
 uint8_t g_itcm[32 << 10];
@@ -227,9 +228,10 @@ static void arm7_hle_receive(Cpu *c, uint32_t w) {
         }
         uint32_t sw = rd32(c, SND_SHARED_WORK_PTR);
         if (getenv("RECOMP_SNDLOG")) fprintf(stderr, "[snd] q%llu sharedwork var=%08x tag antes=%u\n", (unsigned long long)g_frame, sw, sw ? rd32(c, sw) : 0);
+        /* o ARM7 executa a lista (snd.c) e avisa pelo finishCommandTag do SNDSharedWork; pelo canal 7
+         * do PXI ele só manda os alarmes (alarme | id << 8) */
+        if (data) snd_run_commands(c, 0x02000000u | data);
         if (sw) wr32(c, sw, rd32(c, sw) + 1);
-        /* o ARM7 devolve a lista processada pelo mesmo canal; o ARM9 recicla os comandos ao recebê-la */
-        if (data) fifo_push_rx(c, (data << 6) | 7);
         break; }
     }
     (void)fifo_push_rx;
@@ -656,6 +658,7 @@ void rt_vblank(Cpu *c) {
      * diferença dele como "quadros passados" para todas as contagens de tempo do jogo */
     wr32(c, 0x02FFFC3C, rd32(c, 0x02FFFC3C) + 1);
     gx_vblank(g_io);
+    { uint32_t al[8]; int n = snd_vblank(c, al, 8); for (int i = 0; i < n; i++) fifo_push_rx(c, (al[i] << 6) | 7); }
     input_update(c);
     io_set32(0x214, io_get32(0x214) | 1);
     { uint32_t I = c->I; c->I = 0; rt_check_irq(c); c->I = I; } /* halt acorda com IRQ mesmo com I=1 */
