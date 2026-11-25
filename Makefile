@@ -26,8 +26,8 @@ $(BUILD)/obj/rt_%.o: runtime/%.c $(wildcard runtime/*.h)
 
 ifeq ($(WIN),1)
 # Windows (MinGW): SDL2 do pacote "devel mingw"; -mwindows não abre console (WIN_CONSOLE=1 abre, para ver o log)
-CFLAGS += -DHAVE_SDL2 -I$(SDL_DIR)/include -I$(SDL_DIR)/include/SDL2 -Dmain=SDL_main
-LDLIBS += -L$(SDL_DIR)/lib -lmingw32 -lSDL2main -lSDL2 $(if $(WIN_CONSOLE),-mconsole,-mwindows) -static-libgcc
+override CFLAGS += -DHAVE_SDL2 -I$(SDL_DIR)/include -I$(SDL_DIR)/include/SDL2 -Dmain=SDL_main
+LDLIBS += -L$(SDL_DIR)/lib -lmingw32 -lSDL2main -lSDL2 $(if $(WIN_CONSOLE),-mconsole,-mwindows) -static-libgcc -Wl,--stack,67108864
 else ifeq ($(SDL),1)
 # Com SDL2 instalado, abre janela: make SDL=1
 CFLAGS += -DHAVE_SDL2 $(shell sdl2-config --cflags)
