@@ -44,6 +44,7 @@ LDLIBS += -lm
 
 $(BUILD)/ie3$(EXE): $(OBJS)
 	$(CC) -o $@ $^ $(LDLIBS)
+	cp recomplauncher.json $(BUILD)/
 ifeq ($(WIN),1)
 	cp $(SDL_DIR)/bin/SDL2.dll $(BUILD)/
 endif

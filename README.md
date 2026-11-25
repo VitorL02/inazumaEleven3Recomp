@@ -2,6 +2,8 @@
 
 Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre** (Nintendo DS) para rodar nativamente no PC.
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 > Este repositório **não contém** a ROM nem arquivos do jogo. Você precisa da sua própria cópia.
 > ROM de referência: `BOEJ`, tradução BR T1.3, SHA-1 `a70e9a336f6ea8ff78003938dcd024533f034a68`.
 
@@ -70,6 +72,15 @@ O `.exe` leva ícone, dados de versão (Propriedades > Detalhes) e manifesto (`w
 
 **Aviso do SmartScreen:** o SmartScreen só avisa em arquivos **baixados da internet** e sem assinatura digital. Um `.exe` que você mesmo compilou não tem essa marca e abre sem aviso. Se você copiar o `.exe` de outra pessoa, o Windows vai avisar, e o certo é não fazer isso (veja a nota legal abaixo). A única forma de tirar o aviso de um arquivo baixado é assinar com um certificado de código, o que não se aplica aqui porque o projeto não distribui executáveis.
 
+### Com o RecompLauncher
+
+O projeto traz um [`recomplauncher.json`](recomplauncher.json), e o build copia esse arquivo para `build/` e `build-win/`, ao lado do executável.
+Como o executável é gerado na sua máquina, adicione a pasta pelo **Bring Your Recomps** (nas configurações do [RecompLauncher](https://github.com/elripalda/RecompLauncher)) e escolha **Keep untracked**: as releases deste projeto não têm executável para baixar.
+Aí o RecompLauncher pede a sua ROM, mostra as opções de vídeo na página do jogo e começa o jogo direto, sem o launcher próprio. Tudo que o jogo escreve (save, `ie3recomp.ini` e o log em `logs/`) fica na pasta `recompdata` do jogo.
+
+As opções que ele usa também funcionam sozinhas: `--game <rom>` (a ROM) e `--data <pasta>` (onde ficam save, configuração e log; sem ela, tudo fica como antes, ao lado do executável).
+O jogo sai com o código 2 quando não consegue abrir a ROM.
+
 ### Launcher
 
 O launcher segue o estilo dos launchers de recomp: menu lateral (Jogar, Gráficos, Controles, Sobre) e funciona com mouse ou teclado.
@@ -97,7 +108,7 @@ As opções ficam em `ie3recomp.ini`:
 | START / SELECT | Enter / Backspace |
 | Toque | mouse na tela de baixo |
 
-Extras: **Espaço (segurar) acelera o jogo** (pula quadros, até uns 4x), Tab troca a tela no modo de uma tela só, F11 tela cheia, Esc sai.
+Extras: **Espaço (segurar) acelera o jogo** (pula quadros, até uns 4x), Tab troca a tela no modo de uma tela só, F11 tela cheia. Para sair, feche a janela (Alt+F4).
 Opções de linha de comando: `--fps`, `--escala`, `--tela-cheia`, `--config <arq>`, `--sem-janela` (testes); veja `./build/ie3 --help`.
 
 O executável só lê a ROM que você fornece: o ARM9 vai para a memória comprimido, como no cartão, e o próprio código recompilado do jogo o descomprime; os overlays são lidos e descomprimidos direto da ROM.

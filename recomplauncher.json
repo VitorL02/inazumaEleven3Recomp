@@ -1,0 +1,101 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "name": "Inazuma Eleven 3 Recomp",
+  "repo": "VitorL02/inazumaEleven3Recomp",
+  "inputs": [
+    {
+      "id": "game",
+      "label": "A sua ROM (.nds) de Inazuma Eleven 3: Sekai e no Chousen!! The Ogre (BOEJ) com a tradução BR T1.3.",
+      "formats": [{ "type": "file", "extensions": ["nds"] }]
+    }
+  ],
+  "start": {
+    "program": ["ie3.exe", "ie3"],
+    "args": ["--jogar", "--game", "{input:game}", "--data", "{data}"]
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "ini",
+      "file": [{ "path": "{data}/ie3recomp.ini" }],
+      "game_path": "rom"
+    }
+  ],
+  "settings": [
+    {
+      "id": "fps", "label": "Limite de quadros", "group": "Vídeo",
+      "help": "60 é a velocidade do DS. O jogo roda mais rápido com valores maiores.",
+      "choices": [
+        { "label": "30 por segundo", "set": { "fps": "30" } },
+        { "label": "60 por segundo", "set": { "fps": "60" } },
+        { "label": "120 por segundo", "set": { "fps": "120" } },
+        { "label": "144 por segundo", "set": { "fps": "144" } },
+        { "label": "Sem limite", "set": { "fps": "0" } }
+      ],
+      "defaults": { "fps": "60" }
+    },
+    {
+      "id": "escala", "label": "Escala da janela", "group": "Vídeo",
+      "help": "Tamanho da janela em relação às telas do DS.",
+      "choices": [
+        { "label": "1x", "set": { "escala": "1" } },
+        { "label": "2x", "set": { "escala": "2" } },
+        { "label": "3x", "set": { "escala": "3" } },
+        { "label": "4x", "set": { "escala": "4" } },
+        { "label": "5x", "set": { "escala": "5" } },
+        { "label": "6x", "set": { "escala": "6" } }
+      ],
+      "defaults": { "escala": "2" }
+    },
+    {
+      "id": "tela_cheia", "label": "Tela cheia", "group": "Vídeo",
+      "help": "F11 também alterna durante o jogo.",
+      "choices": [
+        { "label": "Não", "set": { "tela_cheia": "0" } },
+        { "label": "Sim", "set": { "tela_cheia": "1" } }
+      ],
+      "defaults": { "tela_cheia": "0" }
+    },
+    {
+      "id": "layout", "label": "Telas", "group": "Vídeo",
+      "help": "Como as duas telas do DS aparecem. Com uma tela só, Tab troca para a de baixo.",
+      "choices": [
+        { "label": "Vertical", "set": { "layout": "vertical" } },
+        { "label": "Lado a lado", "set": { "layout": "lado_a_lado" } },
+        { "label": "Uma tela só", "set": { "layout": "so_cima" } }
+      ],
+      "defaults": { "layout": "vertical" }
+    },
+    {
+      "id": "suavizar", "label": "Suavizar imagem", "group": "Vídeo",
+      "help": "Desligado deixa os pixels nítidos.",
+      "choices": [
+        { "label": "Desligado", "set": { "suavizar": "0" } },
+        { "label": "Ligado", "set": { "suavizar": "1" } }
+      ],
+      "defaults": { "suavizar": "0" }
+    },
+    {
+      "id": "vsync", "label": "V-Sync", "group": "Vídeo",
+      "help": "Evita cortes na imagem.",
+      "choices": [
+        { "label": "Desligado", "set": { "vsync": "0" } },
+        { "label": "Ligado", "set": { "vsync": "1" } }
+      ],
+      "defaults": { "vsync": "1" }
+    }
+  ],
+  "saves": ["{data}/ie3.sav"],
+  "folders": {
+    "saves": [{ "path": "{data}" }],
+    "logs": [{ "path": "{data}/logs" }]
+  },
+  "actions": [
+    { "id": "saves", "label": "Save e configurações", "help": "A pasta com o save (ie3.sav) e o ie3recomp.ini.", "open": "saves" }
+  ],
+  "exit_codes": {
+    "0": "ok",
+    "2": "Não consegui abrir a ROM. Escolha o arquivo .nds de novo na página do jogo."
+  }
+}
