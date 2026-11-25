@@ -267,10 +267,11 @@ static void input_script(void) {
 }
 static void input_update(Cpu *c) {
     input_script();
-    /* o ARM7 copia X/Y, caneta e dobradiça para 02FFFFA8 */
-    uint16_t xy = 0x7F & ~((g_keys >> 10) & 3);
-    if (g_touch) xy &= ~0x40;
-    xy &= ~0x80; /* tela aberta */
+    /* O ARM7 do NitroSDK escreve em 02FFFFA8 os botões X/Y/DEBUG já na posição do
+       PAD (X=0x400, Y=0x800, DEBUG=0x2000, 1 = solto) e a tampa no bit 15 (1 = fechada).
+       PAD_Read faz (KEYINPUT | buf) ^ 0x2FFF, então qualquer bit baixo aqui "solta"
+       A/B/setas. */
+    uint16_t xy = 0x2C00 & ~(uint16_t)(g_keys & 0xC00);
     wr16(c, 0x02FFFFA8, xy);
 }
 
@@ -302,7 +303,7 @@ static uint32_t io_rd16(Cpu *c, uint32_t off) {
     case 0x004: { uint16_t v = io_get16(4) & ~7; if (g_vcount >= 192 && g_vcount < 262) v |= 1; return v; }
     case 0x006: g_vcount = (g_vcount + 1) % 263; return g_vcount;
     case 0x130: return 0x3FF & ~g_keys;
-    case 0x136: return 0x007F;       /* X/Y soltos, tela aberta */
+    case 0x136: return (uint16_t)(0x7F & ~((g_keys >> 10) & 3) & ~(g_touch ? 0x40 : 0)); /* EXTKEYIN: X/Y, caneta, tampa aberta */
     case 0x184: return (io_get16(0x184) & 0x8404) | 0x0001 | (g_fifo_rx_n ? 0 : 0x100); /* envio sempre vazio */
     case 0x214: case 0x216: return io_get16(off);
     case 0x100: case 0x104: case 0x108: case 0x10C: return g_tm_count[(off - 0x100) / 4];
@@ -654,6 +655,12 @@ static void raise_irq(Cpu *c, uint32_t bits) {
 void rt_after_irq(Cpu *c);
 void rt_vblank(Cpu *c) {
     g_frame++;
+    { /* depuração: RECOMP_RAMDUMP="<pasta>:q1,q2,..." grava a RAM principal nesses quadros */
+        static const char *rd = (const char *)1; if (rd == (const char *)1) rd = getenv("RECOMP_RAMDUMP");
+        if (rd) { const char *colon = strchr(rd, ':'); char key[32]; snprintf(key, sizeof key, ",%llu,", (unsigned long long)g_frame);
+            char list[512]; snprintf(list, sizeof list, ",%s,", colon ? colon + 1 : "");
+            if (colon && strstr(list, key)) { char path[600]; snprintf(path, sizeof path, "%.*s/ram_%06llu.bin", (int)(colon - rd), rd, (unsigned long long)g_frame);
+                FILE *f = fopen(path, "wb"); if (f) { fwrite(g_main, 1, sizeof g_main, f); fclose(f); } } } }
     g_vcount = 192;
     timers_advance(560190);
     /* contador de VBlank que o ARM7 mantém em 02FFFC3C (OS_GetVBlankCount); o laço principal usa a

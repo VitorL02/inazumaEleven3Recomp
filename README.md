@@ -30,8 +30,8 @@ Ou seja, praticamente todo o código do jogo já vira C. O que falta está no **
 
 **Até onde o jogo vai**
 
-- Funciona: créditos da tradução, tela título, novo jogo, teclado do nome do save, as primeiras cenas da história (Futuro, Rua) com conversas, vozes, música, mapa e o cenário 3D com o personagem andando.
-- Problema conhecido: o jogo pode ficar numa **tela preta** na cena "voltando pro nosso tempo" (investigação em andamento, provavelmente ligada aos vídeos pulados).
+- Funciona: créditos da tradução, tela título, novo jogo, teclado do nome do save, as primeiras cenas da história (Futuro, Rua) com conversas, vozes, música, mapa e o cenário 3D com o personagem andando, menu (bolsa), salvar e continuar do save.
+- Problema conhecido: o jogo podia ficar numa **tela preta** na cena "voltando pro nosso tempo". A causa da tela preta do Salvar (troca de tarefa do jogo) foi corrigida e pode ser a mesma; falta confirmar.
 - Ainda não tem: vídeos, sombras e contorno no 3D. Há um glitch de espaçamento em alguns textos.
 
 Detalhes técnicos em [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
@@ -142,6 +142,6 @@ tools/iterate.sh rom.nds                                       # roda e corrige 
 | 0 | Extrair e mapear a ROM | feito |
 | 1 | Análise: funções, loop principal, overlays, IRQ, IPC | feito |
 | 2 | Recompilador ARM/Thumb → C + runtime 2D | feito |
-| 3 | Todos os overlays, arquivos e saves | feito (save ainda em teste) |
+| 3 | Todos os overlays, arquivos e saves | feito |
 | 4 | GPU 3D, som (HLE do ARM7), vídeos Mobiclip, entrada | 3D, som e entrada feitos; faltam vídeos |
 | 5 | Polimento: resolução maior, controles configuráveis, aceleração | começando (tecla de acelerar) |

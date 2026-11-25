@@ -146,6 +146,7 @@ void rt_dump_threads(void) {
 #define TASK_CUR 0x020b9d50u
 #define TASK_SP  0x020b9d54u
 static Fiber *g_task_fiber[TASK_MAX];
+static uint32_t g_task_sp0[TASK_MAX], g_task_fn0[TASK_MAX]; /* sp e função da tarefa quando a fibra começou */
 static Fiber *g_task_parent;   /* fibra do laço principal enquanto uma tarefa roda */
 static int g_task_running = -1;
 
@@ -188,8 +189,16 @@ void hle_Task_Resume(Cpu *c) {
     int idx = (int)rd32(c, TASK_CUR);
     if (idx < 0 || idx >= TASK_MAX) rt_fatal(c, "tarefa inválida", idx);
     wr32(c, 0x020b9d4cu, c->r[13]);
+    /* O jogo pode trocar a tarefa de um índice sem que a antiga termine (ex.: a tela de salvar
+     * de ov061 cria a sua no índice da tarefa do campo, que é descartada). Como o yield aqui não
+     * reescreve o sp salvo, um sp/função diferente do que vimos na criação = tarefa nova. */
+    uint32_t sp0 = rd32(c, TASK_SP + idx * 4), fn0 = rd32(c, 0x020b9d94u + idx * 4);
+    if (g_task_fiber[idx] && (sp0 != g_task_sp0[idx] || fn0 != g_task_fn0[idx])) {
+        g_task_fiber[idx]->used = 2; /* a fibra antiga é abandonada; a pilha volta para o estoque */
+        g_task_fiber[idx] = NULL;
+    }
     int fresh = !g_task_fiber[idx];
-    if (fresh) g_task_fiber[idx] = fiber_alloc_task();
+    if (fresh) { g_task_fiber[idx] = fiber_alloc_task(); g_task_sp0[idx] = sp0; g_task_fn0[idx] = fn0; }
     g_task_parent = g_cur;
     g_task_running = idx;
     task_swap(c, g_task_fiber[idx], fresh);
@@ -198,6 +207,15 @@ void hle_Task_Resume(Cpu *c) {
 /* 0206ee5c: a tarefa cede o resto do quadro */
 void hle_Task_Yield(Cpu *c) {
     if (g_task_running < 0 || !g_task_parent) rt_fatal(c, "yield fora de tarefa", c->r[14]);
+    { /* depuração: RECOMP_YIELDLOG=<quadro> lista de onde cada tarefa cede a vez nesse quadro */
+        static long yq = -2; if (yq == -2) { const char *e = getenv("RECOMP_YIELDLOG"); yq = e ? atol(e) : -1; }
+        extern uint64_t g_frame;
+        if (yq >= 0 && (long)g_frame == yq) {
+            fprintf(stderr, "[yield] tarefa %d:", g_task_running);
+            for (int k = c->rsp - 1; k >= 0 && k >= c->rsp - 8; k--) fprintf(stderr, " %08x", c->rs[k]);
+            fprintf(stderr, "\n");
+        }
+    }
     uint32_t keep[13];
     memcpy(keep, c->r, sizeof keep); /* a versão original salva r0-r12 e devolve iguais */
     task_swap(c, g_task_parent, 0);
