@@ -13,3 +13,5 @@ int plat_proc_done(intptr_t h);  /* 1 se terminou (e libera), 0 se ainda roda */
 void plat_proc_kill(intptr_t h);
 /* Windows sem console (build de janela): manda stderr para <pasta do exe>/<nome>. Nos outros, não faz nada. */
 void plat_log_to_file(const char *self_exe, const char *name);
+/* cria a pasta (só o último nível); 0 se criou ou já existia */
+int plat_mkdir(const char *path);

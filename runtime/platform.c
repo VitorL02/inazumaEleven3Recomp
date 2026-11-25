@@ -41,6 +41,7 @@ int plat_proc_done(intptr_t h) {
     return 0;
 }
 void plat_proc_kill(intptr_t h) { TerminateProcess((HANDLE)h, 1); CloseHandle((HANDLE)h); }
+int plat_mkdir(const char *path) { return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS ? 0 : -1; }
 void plat_log_to_file(const char *self_exe, const char *name) {
     HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
     if (h && h != INVALID_HANDLE_VALUE) return; /* tem console ou saída redirecionada: deixa como está */
@@ -53,6 +54,7 @@ void plat_log_to_file(const char *self_exe, const char *name) {
 }
 #else
 #define _POSIX_C_SOURCE 200809L
+#include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
 #include <signal.h>
@@ -104,4 +106,5 @@ intptr_t plat_spawn_quiet(const char *exe, const char *const argv[]) {
 int plat_proc_done(intptr_t h) { int st; return waitpid((pid_t)h, &st, WNOHANG) == (pid_t)h; }
 void plat_proc_kill(intptr_t h) { int st; kill((pid_t)h, SIGKILL); waitpid((pid_t)h, &st, 0); }
 void plat_log_to_file(const char *self_exe, const char *name) { (void)self_exe; (void)name; }
+int plat_mkdir(const char *path) { return mkdir(path, 0755) == 0 || errno == EEXIST ? 0 : -1; }
 #endif

@@ -316,6 +316,8 @@ static void usage(const char *p) {
         "  --fps <n>        limite de quadros (0 = sem limite)\n"
         "  --escala <n>     escala da janela (1 a 6)\n"
         "  --tela-cheia     começa em tela cheia\n"
+        "  --game <rom>     a ROM (o mesmo que passar o caminho sozinho)\n"
+        "  --data <pasta>   guarda tudo que o jogo escreve (save, .ini, log) nesta pasta\n"
         "  --sem-janela     roda sem mostrar nada (para testes; use RECOMP_DUMP para gravar quadros)\n"
         "  --trace          imprime cada função chamada (lento)\n", p);
 }
@@ -323,12 +325,27 @@ static void usage(const char *p) {
 int main(int argc, char **argv) {
     const char *rom_arg = NULL; int skip_launcher = 0;
     if (plat_self_exe(g_self_exe, sizeof g_self_exe)) snprintf(g_self_exe, sizeof g_self_exe, "%s", argv[0]);
-    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--config") && i + 1 < argc) g_cfg_path = argv[++i];
+    /* Pasta de dados: --data ou RECOMPLAUNCHER_DATA (RecompLauncher). Sem elas, tudo fica como antes. */
+    const char *data_dir = getenv("RECOMPLAUNCHER_DATA"); int cfg_given = 0;
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--config") && i + 1 < argc) { g_cfg_path = argv[++i]; cfg_given = 1; }
+        else if (!strcmp(argv[i], "--data") && i + 1 < argc) data_dir = argv[++i];
+    }
+    static char data_cfg[1100], data_sav[1100], data_log[1100];
+    if (data_dir && data_dir[0]) {
+        plat_mkdir(data_dir);
+        if (!cfg_given) { snprintf(data_cfg, sizeof data_cfg, "%s/ie3recomp.ini", data_dir); g_cfg_path = data_cfg; }
+        extern const char *g_save_path;
+        snprintf(data_sav, sizeof data_sav, "%s/ie3.sav", data_dir); g_save_path = data_sav;
+        snprintf(data_log, sizeof data_log, "%s/logs", data_dir); plat_mkdir(data_log);
+        snprintf(data_log, sizeof data_log, "%s/logs/ie3recomp.log", data_dir);
+    }
     config_defaults(&g_cfg);
     config_load(&g_cfg, g_cfg_path);
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (!strcmp(a, "--config")) i++;
+        if (!strcmp(a, "--config") || !strcmp(a, "--data")) i++;
+        else if (!strcmp(a, "--game") && i + 1 < argc) rom_arg = argv[++i];
         else if (!strcmp(a, "--trace")) g_trace = 1;
         else if (!strcmp(a, "--jogar")) skip_launcher = 1;
         else if (!strcmp(a, "--sem-janela")) { g_headless = 1; skip_launcher = 1; }
@@ -345,7 +362,9 @@ int main(int argc, char **argv) {
 #endif
     if (getenv("RECOMP_HEADLESS")) g_headless = 1;
     { extern int g_log_frames; g_log_frames = g_headless || getenv("RECOMP_QUADROS"); }
-    if (!g_capture_path) plat_log_to_file(g_self_exe, "ie3recomp.log"); /* Windows sem console: mensagens vão para um arquivo ao lado do .exe */
+    if (!g_capture_path && data_log[0]) { if (freopen(data_log, "w", stderr)) setvbuf(stderr, NULL, _IONBF, 0); }
+    else if (!g_capture_path) plat_log_to_file(g_self_exe, "ie3recomp.log"); /* Windows sem console: mensagens vão para um arquivo ao lado do .exe */
+    { const char *mode = getenv("RECOMPLAUNCHER_MODE"); if (mode && !strcmp(mode, "bigpicture")) g_cfg.fullscreen = 1; }
     if (rom_arg) snprintf(g_cfg.rom, sizeof g_cfg.rom, "%s", rom_arg);
     if (!g_capture_path && (getenv("RECOMP_LAUNCHER_DUMP") || (!skip_launcher && !g_headless))) {
         if (run_launcher() != LAUNCH_PLAY) return 0;
@@ -353,7 +372,7 @@ int main(int argc, char **argv) {
     if (!g_cfg.rom[0]) { usage(argv[0]); return 1; }
 
     char err[256];
-    if (rom_open(g_cfg.rom, err, sizeof err)) { fprintf(stderr, "ROM: %s\n", err); return 1; }
+    if (rom_open(g_cfg.rom, err, sizeof err)) { fprintf(stderr, "ROM: %s\n", err); return 2; } /* 2: não abriu a ROM */
     if (strcmp(g_romfile.sha1, "a70e9a336f6ea8ff78003938dcd024533f034a68"))
         fprintf(stderr, "aviso: SHA-1 %s diferente da versão esperada (BR T1.3); o código recompilado pode não bater com esta ROM\n", g_romfile.sha1);
     extern uint8_t *g_rom; extern size_t g_rom_size;

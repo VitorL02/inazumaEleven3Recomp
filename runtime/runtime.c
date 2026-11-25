@@ -162,7 +162,8 @@ static uint32_t fifo_pop_rx(void) {
 /* Backup (save) do cartão: o ARM9 manda pedidos pelo PXI (tag 11) e o ARM7 faz o acesso SPI.
  * Aqui o save é um arquivo comum. Layout do CARDiCommandArg: +0 result, +4 type, +8 id, +C src, +10 dst, +14 len. */
 static uint8_t g_save[1 << 20]; static int g_save_loaded; static uint32_t g_card_cmdarg; static int g_card_wait_ptr;
-static const char *save_path(void) { const char *p = getenv("RECOMP_SAVE"); return p ? p : "ie3.sav"; }
+const char *g_save_path = "ie3.sav"; /* com --data (ou RECOMPLAUNCHER_DATA) vai para <dados>/ie3.sav */
+static const char *save_path(void) { const char *p = getenv("RECOMP_SAVE"); return p ? p : g_save_path; }
 static void save_load(void) {
     if (g_save_loaded) return;
     g_save_loaded = 1; memset(g_save, 0xFF, sizeof g_save);
