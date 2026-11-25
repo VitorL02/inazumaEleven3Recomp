@@ -6,6 +6,7 @@
 #include "thumb.h"
 #include "overlays.h"
 #include "video.h"
+#include "rom.h"
 
 uint8_t g_main[4 << 20];
 uint8_t g_itcm[32 << 10];
@@ -477,8 +478,6 @@ static GenFunc ht_find(int module, uint32_t a) {
     while (g_ht[h].fn) { if (g_ht[h].key == a && g_ht[h].module == module) return g_ht[h].fn; h = (h + 1) & (HT_SIZE - 1); }
     return NULL;
 }
-static uint8_t *g_ov_image[NUM_OVERLAYS];
-static size_t g_ov_image_size[NUM_OVERLAYS];
 static const uint8_t *ov_image(int id, size_t *sz);
 static void ov_mark_loaded(int id);
 static GenFunc lookup(uint32_t a) {
@@ -538,16 +537,7 @@ void rt_jump(Cpu *c, uint32_t target) {
 void rt_fallthrough(Cpu *c, uint32_t next) { rt_jump(c, next); }
 
 /* ---------------- overlays (HLE de FS_LoadOverlay) ---------------- */
-extern uint8_t *load_file(const char *path, size_t *size);
-extern const char *g_extracted;
-static const uint8_t *ov_image(int id, size_t *sz) {
-    if (!g_ov_image[id]) {
-        char path[512]; snprintf(path, sizeof path, "%s/ov/ov%03d.bin", g_extracted, id);
-        g_ov_image[id] = load_file(path, &g_ov_image_size[id]);
-    }
-    *sz = g_ov_image_size[id];
-    return g_ov_image[id];
-}
+static const uint8_t *ov_image(int id, size_t *sz) { return rom_overlay_image(id, sz); }
 static void ov_mark_loaded(int id) {
     const OverlayInfo *o = &g_overlays[id];
     for (int i = 0; i < NUM_OVERLAYS; i++) /* descarrega quem ocupa a mesma memória */

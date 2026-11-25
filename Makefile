@@ -3,7 +3,7 @@ CC ?= gcc
 CFLAGS ?= -O1 -g -w -fno-strict-aliasing -fwrapv
 GEN = build/gen
 GEN_SRCS = $(wildcard $(GEN)/*.c)
-RT_SRCS = runtime/runtime.c runtime/thumb.c runtime/threads.c runtime/video.c runtime/main.c
+RT_SRCS = runtime/runtime.c runtime/thumb.c runtime/threads.c runtime/video.c runtime/rom.c runtime/config.c runtime/launcher.c runtime/main.c
 OBJS = $(patsubst %.c,build/obj/%.o,$(notdir $(GEN_SRCS))) $(patsubst %.c,build/obj/rt_%.o,$(notdir $(RT_SRCS)))
 
 all: build/ie3
@@ -15,7 +15,7 @@ build/obj/%.o: $(GEN)/%.c runtime/runtime.h runtime/cpu.h
 	@mkdir -p build/obj
 	$(CC) $(CFLAGS) -Iruntime -I$(GEN) -c $< -o $@
 
-build/obj/rt_%.o: runtime/%.c runtime/runtime.h
+build/obj/rt_%.o: runtime/%.c $(wildcard runtime/*.h)
 	@mkdir -p build/obj
 	$(CC) $(CFLAGS) -Iruntime -I$(GEN) -c $< -o $@
 

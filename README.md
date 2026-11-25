@@ -7,10 +7,36 @@ Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre**
 
 ## Status
 
-Fase 2 em andamento: o jogo inteiro já é traduzido para C, compila e **roda no PC até o loop principal**, com threads, leitura de arquivos e save. O renderizador 2D já mostra a primeira tela (créditos da tradução). Ainda sem 3D e som.
+Fase 2 em andamento: o jogo inteiro já é traduzido para C, compila e **roda no PC até o loop principal**, com threads, leitura de arquivos e save. O renderizador 2D já mostra a primeira tela (créditos da tradução). Tem launcher com escolha da ROM e configurações (FPS, escala, tela cheia, layout). Ainda sem 3D e som.
 Veja [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
 
-## Como usar as ferramentas
+## Como jogar
+
+```bash
+make gen && make -j4 SDL=1     # precisa de SDL2 (Linux: libsdl2-dev)
+./build/ie3                    # abre o launcher
+./build/ie3 rom.nds --jogar    # ou direto, sem o launcher
+```
+
+Na primeira vez o launcher pede a ROM: arraste o arquivo `.nds` para a janela (ou passe o caminho na linha de comando).
+Ele confere se é a versão certa pelo SHA-1 e guarda tudo em `ie3recomp.ini`:
+
+| Opção | Chave no .ini | Valores |
+|---|---|---|
+| ROM | `rom` | caminho do `.nds` |
+| Limite de quadros | `fps` | 30, 60, 120, 144 ou 0 (sem limite) |
+| Escala da janela | `escala` | 1 a 6 (2 = 512x768 com as telas em pé) |
+| Tela cheia | `tela_cheia` | 0 ou 1 (F11 alterna durante o jogo) |
+| Telas | `layout` | `vertical`, `lado_a_lado` ou `so_cima` (Tab troca para a de baixo) |
+| Suavizar imagem | `suavizar` | 0 (pixels nítidos) ou 1 |
+| V-Sync | `vsync` | 0 ou 1 |
+
+Controles: setas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = START, Backspace = SELECT, mouse na tela de baixo = toque, Esc = sair.
+Opções de linha de comando: `--fps`, `--escala`, `--tela-cheia`, `--config <arq>`, `--sem-janela` (testes); veja `./build/ie3 --help`.
+
+O executável só lê a ROM que você fornece: o ARM9 vai para a memória comprimido, como no cartão, e o próprio código recompilado do jogo o descomprime; os overlays são lidos e descomprimidos direto da ROM.
+
+## Como usar as ferramentas de análise
 
 ```bash
 pip install -r requirements.txt
@@ -19,7 +45,7 @@ python3 -I tools/analyze.py extracted analysis/functions.json  # descobre funç�
 python3 -I tools/dis.py 02029c08 40                            # disassembla um endereço
 OV=16 python3 -I tools/xref.py 020f129c                        # início da função e quem chama (OV escolhe o overlay)
 make gen && make -j4                                           # gera o C e compila build/ie3
-RECOMP_WATCHDOG=20 ./build/ie3 extracted rom.nds               # roda
+RECOMP_WATCHDOG=20 ./build/ie3 rom.nds --sem-janela            # roda sem janela (testes)
 tools/iterate.sh rom.nds                                       # roda e corrige funções faltantes automaticamente
 ```
 

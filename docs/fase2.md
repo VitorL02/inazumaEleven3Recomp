@@ -74,20 +74,26 @@ Quando o código pula para um endereço que a análise estática não achou (por
 ## Como rodar
 
 ```bash
-python3 -I tools/extract.py rom.nds extracted
+python3 -I tools/extract.py rom.nds extracted        # só para gerar o código; o executável não usa extracted/
 python3 -I tools/analyze.py extracted analysis/functions.json
-make gen && make -j4
-RECOMP_WATCHDOG=20 ./build/ie3 extracted rom.nds
+make gen && make -j4 SDL=1
+./build/ie3                                          # launcher
+RECOMP_WATCHDOG=20 ./build/ie3 rom.nds --sem-janela   # testes
 ```
 
-Vídeo: `make SDL=1` abre uma janela (precisa de SDL2). Sem janela, `RECOMP_DUMP=<pasta>` grava quadros PPM a cada `RECOMP_DUMP_EVERY` quadros.
+O executável lê só a ROM (`runtime/rom.c`): confere o código BOEJ e o SHA-1, copia o ARM9 comprimido para 02000000 e deixa o crt0 recompilado descomprimir e copiar os autoloads, como no aparelho. Os overlays saem da tabela de overlays da ROM, descomprimidos (BLZ) na primeira vez que são carregados.
+
+Launcher (`runtime/launcher.c`): desenha num buffer de pixels com uma fonte 8x16 embutida (`runtime/font.h`, gerada por `tools/gen_font.py`), e o SDL2 só mostra o buffer e entrega teclado, mouse e arquivos arrastados. Configuração em `ie3recomp.ini` (`runtime/config.c`). Para testar sem janela: `RECOMP_LAUNCHER_DUMP=tela.ppm RECOMP_LAUNCHER_KEYS="drop=rom.nds,down,right" ./build/ie3`.
+
+Vídeo: `make SDL=1` abre uma janela (precisa de SDL2), com limite de quadros (`fps` no .ini), escala, tela cheia e layout das telas. Sem janela, `RECOMP_DUMP=<pasta>` grava quadros PPM a cada `RECOMP_DUMP_EVERY` quadros.
 Entrada por roteiro: `RECOMP_INPUT="150-155:A;300-305:TOUCH=128,96;400:START"` (quadros e teclas A B SELECT START RIGHT LEFT UP DOWN R L X Y).
 
 Variáveis úteis: `RECOMP_PROFILE=1` (com o watchdog, mostra onde o tempo é gasto), `RECOMP_WATCHDOG=<s>` (mostra onde cada thread está se travar), `RECOMP_CARDLOG`, `RECOMP_PXILOG`, `RECOMP_IRQLOG`, `RECOMP_SAVELOG`, `RECOMP_SAVE=<arquivo>`.
 
 ## Limitações conhecidas
 
-- Sem 3D, janelas e blending no vídeo; sem som; entrada só por roteiro (teclado/mouse quando houver SDL2).
-- O tempo só anda no VBlank e no halt; não há limite de 60 quadros por segundo.
+- Sem 3D, janelas e blending no vídeo; sem som.
+- O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
+- Só compila em Linux/macOS por enquanto: as threads do jogo usam `ucontext`; no Windows será preciso trocar por Fibers.
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.
 - 138 instruções sem suporte no código gerado (quase todas em "funções" falsas achadas por ponteiros em dados).
