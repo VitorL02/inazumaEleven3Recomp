@@ -24,15 +24,15 @@ Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre**
 | Instruções que o tradutor ainda não cobre | 138 (0,01%; a maioria é dado confundido com código) |
 | Funções Thumb | 142, rodam num interpretador pequeno |
 | Processador ARM7 (som, toque, cartão) | substituído por HLE no runtime |
-| Vídeos Mobiclip (decodificador escrito à mão em assembly) | ainda não: os vídeos são pulados |
+| Vídeos Mobiclip (decodificador escrito à mão em assembly) | tocam com imagem e som: esse trecho roda num interpretador ARM |
 
 Ou seja, praticamente todo o código do jogo já vira C. O que falta está no **runtime** (a parte que imita o hardware do DS) e em casos especiais.
 
 **Até onde o jogo vai**
 
-- Funciona: créditos da tradução, tela título, novo jogo, teclado do nome do save, as primeiras cenas da história (Futuro, Rua) com conversas, vozes, música, mapa e o cenário 3D com o personagem andando, menu (bolsa), salvar e continuar do save.
-- Problema conhecido: o jogo podia ficar numa **tela preta** na cena "voltando pro nosso tempo". A causa da tela preta do Salvar (troca de tarefa do jogo) foi corrigida e pode ser a mesma; falta confirmar.
-- Ainda não tem: vídeos, sombras e contorno no 3D. Há um glitch de espaçamento em alguns textos.
+- Funciona: créditos da tradução, tela título, novo jogo, teclado do nome do save, as primeiras cenas da história (Futuro, Rua) com conversas, vozes, música, mapa e o cenário 3D com o personagem andando, menu (bolsa), salvar e continuar do save, vídeos com som.
+- A história passa da cena "voltando pro nosso tempo" (antes fechava).
+- Ainda não tem: sombras e contorno no 3D. Há um glitch de espaçamento em alguns textos.
 
 Detalhes técnicos em [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
 
@@ -143,5 +143,5 @@ tools/iterate.sh rom.nds                                       # roda e corrige 
 | 1 | Análise: funções, loop principal, overlays, IRQ, IPC | feito |
 | 2 | Recompilador ARM/Thumb → C + runtime 2D | feito |
 | 3 | Todos os overlays, arquivos e saves | feito |
-| 4 | GPU 3D, som (HLE do ARM7), vídeos Mobiclip, entrada | 3D, som e entrada feitos; faltam vídeos |
+| 4 | GPU 3D, som (HLE do ARM7), vídeos Mobiclip, entrada | feito |
 | 5 | Polimento: resolução maior, controles configuráveis, aceleração | começando (tecla de acelerar) |

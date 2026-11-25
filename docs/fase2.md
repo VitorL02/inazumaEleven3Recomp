@@ -43,6 +43,7 @@ runtime/*.c + build/gen ──make──> build/ie3
 | `runtime.c` | mapa de memória, I/O, divisor/raiz por hardware, DMA, timers, IRQ, cartão, PXI/ARM7 em HLE, save, despacho de funções, overlays |
 | `threads.c` | threads do SDK como fibras do host (`hostfiber.c`: ucontext ou Fibers do Win32), substituindo `OSi_RescheduleThread` |
 | `thumb.c` | interpretador Thumb (o jogo só tem ~60 funções Thumb) |
+| `arm_interp.c` | interpretador ARM (ARMv5TE) para o decodificador Mobiclip do overlay 127 |
 | `video.c` | bancos de VRAM e os dois motores 2D (BGs de texto/afins/bitmap, sprites, paletas estendidas, brilho mestre) |
 | `main.c` | monta a memória como o bootloader deixaria, chama o `crt0`, grava quadros ou abre a janela |
 
@@ -96,7 +97,7 @@ Variáveis úteis: `RECOMP_PROFILE=1` (com o watchdog, mostra onde o tempo é ga
 - **Tabelas de salto** (`add pc, pc, rX, lsl #2`): o tamanho vem do maior `cmp rX, #n` antes da instrução, e as entradas podem ser `pop` além de `b`.
 - **Funções que pulam para trás da entrada** (código compartilhado, ex.: divisão de 64 bits em 0201f954 → 0201f818): o C sai em ordem de endereço, então a função começa com `goto` para a entrada. Afetava 26 funções.
 - **Chamadas montadas à mão** (`add lr, pc, #0` ou `mov lr, pc` seguido de `bx rX`) viram chamadas.
-- **Vídeos Mobiclip** (overlay 127): o decodificador é assembly escrito à mão com saltos calculados (`add pc, r6, r5`). Por enquanto `hle_Movie_Open`/`hle_Movie_Update` pulam os vídeos. Caminho para tocá-los: interpretador ARM para esse overlay ou HLE com um decodificador Mobiclip em C (o FFmpeg tem um).
+- **Vídeos Mobiclip** (overlay 127): o decodificador é assembly escrito à mão com saltos calculados (`add pc, r6, r5`) e chamadas montadas com `add lr, pc`. Ele roda no interpretador ARM (`runtime/arm_interp.c`): `rt_call` manda para lá qualquer endereço do overlay 127 enquanto ele está carregado, e o interpretador chama o código recompilado quando sai da região. O DS roda o ARM9 a 67 MHz, então interpretar esse trecho é rápido (a abertura decodifica a mais de 400 quadros por segundo sem janela). O som dos vídeos usa os canais 8 e 9 com alarme; o runtime atualiza o `channelStatus` logo depois de cada lista de comandos, como o ARM7, senão o driver do jogo para esses canais.
 - **Tarefas cooperativas do jogo:** até 16 corrotinas com pilha própria dentro da thread principal (0206efd8 retoma, 0206ee5c cede, 0206ede4 termina; tabelas em 020b9d4c..020b9d94). Cada tarefa vira uma fibra do host (`runtime/threads.c`).
 - `RECOMP_SPCHECK=1` avisa quando uma função chamada por `rt_call` devolve `sp` diferente: foi assim que os dois problemas acima apareceram.
 
@@ -114,7 +115,7 @@ Próximo: depois de "Novo Jogo" aparece o aviso de save adulterado; ver por que 
   alarmes pelo PXI (alarme | id << 8, canal 7), mantém o channelStatus do SNDSharedWork e mixa em 32768 Hz.
   O timer do comando já é o divisor (o ARM7 grava 0x10000 - timer). RECOMP_WAV=arquivo.wav grava a saída;
   RECOMP_MUDO desliga o áudio.
-- Sem janelas no vídeo 2D (o blending é simples); vídeos Mobiclip pulados.
+- Sem janelas no vídeo 2D (o blending é simples).
 - O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
 - Windows: `make windows` (MinGW) gera `build-win/ie3.exe`; o que muda por sistema fica em `platform.c` e `hostfiber.c`.
   O .exe compila, mas ainda não foi executado num Windows de verdade (o Wine não roda neste ambiente).

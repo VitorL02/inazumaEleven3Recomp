@@ -162,6 +162,15 @@ static void f_timer(Chan *ch, uint32_t t, uint32_t u) { (void)u; ch->timer = t; 
 static void f_vol(Chan *ch, uint32_t v, uint32_t s) { ch->vol = v & 0x7F; ch->shift = s & 3; }
 static void f_pan(Chan *ch, uint32_t p, uint32_t u) { (void)u; ch->pan = p & 0x7F; }
 
+/* channelStatus do SNDSharedWork (+8): canais tocando. O ARM7 atualiza logo depois de executar
+ * cada lista de comandos; se só atualizasse no VBlank, o driver de som do jogo veria um canal
+ * recém-iniciado (o áudio dos vídeos) como já terminado e o pararia. */
+static void update_status(Cpu *c) {
+    if (!g_shared) return;
+    uint16_t st = 0;
+    for (int i = 0; i < 16; i++) if (g_ch[i].active) st |= (uint16_t)(1 << i);
+    wr16(c, g_shared + 8, st);
+}
 void snd_run_commands(Cpu *c, uint32_t cmd) {
     g_c = c;
     static int log = -1; if (log < 0) log = getenv("RECOMP_SNDLOG") != NULL;
@@ -214,6 +223,7 @@ void snd_run_commands(Cpu *c, uint32_t cmd) {
         }
         cmd = rd32(c, cmd);
     }
+    update_status(c);
 }
 
 int snd_vblank(Cpu *c, uint32_t *msgs, int max) {
@@ -243,11 +253,7 @@ int snd_vblank(Cpu *c, uint32_t *msgs, int max) {
     acc += SND_RATE / 59.8261;
     int frames = (int)acc; acc -= frames;
     mix(frames);
-    if (g_shared) {
-        uint16_t st = 0;
-        for (int i = 0; i < 16; i++) if (g_ch[i].active) st |= (uint16_t)(1 << i);
-        wr16(c, g_shared + 8, st);
-    }
+    update_status(c);
     if (g_wav && (g_wav_n % SND_RATE) < (uint32_t)frames) { /* atualiza o cabeçalho a cada segundo */
         long here = ftell(g_wav);
         uint32_t data = g_wav_n * 4;

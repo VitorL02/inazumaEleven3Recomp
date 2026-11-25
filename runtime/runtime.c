@@ -4,6 +4,7 @@
 #include <string.h>
 #include "runtime.h"
 #include "thumb.h"
+#include "arm_interp.h"
 #include "overlays.h"
 #include "video.h"
 #include "rom.h"
@@ -528,11 +529,18 @@ static GenFunc lookup(uint32_t a) {
     }
     return NULL;
 }
+/* Regiões interpretadas (runtime/arm_interp.c): o decodificador Mobiclip do overlay 127. */
+#define OV_MOBICLIP 127
+int rt_interp_region(uint32_t a) {
+    const OverlayInfo *o = &g_overlays[OV_MOBICLIP];
+    return g_loaded[OV_MOBICLIP] && a >= o->ram && a < o->ram + o->size;
+}
 void rt_call(Cpu *c, uint32_t target) {
     uint32_t ret = c->r[14];
     if (c->rsp >= 4000) rt_fatal(c, "pilha de retornos estourou em", target);
     c->rs[c->rsp++] = ret;
     if (target & 1) { thumb_exec(c, target & ~1u); c->rsp--; return; }
+    if (rt_interp_region(target)) { arm_exec(c, target); c->rsp--; return; }
     GenFunc f = lookup(target);
     if (!f) {
         /* registra o endereço para a próxima geração (recomp/armrecomp.py lê analysis/extra_functions.txt) */

@@ -9,9 +9,10 @@ arm9 020020cc hle_OS_LoadContext        # OS_LoadContext fora do reschedule
 # funções que o runtime chama e precisam existir mesmo sem chamador direto
 keep arm9 02001d08                  # OS_SelectThread
 
-# vídeos Mobiclip: pulados por enquanto (veja runtime.c, "vídeos Mobiclip")
-arm9 0202e520 hle_Movie_Open            # abre e pré-decodifica o vídeo
-arm9 0202e78c hle_Movie_Update          # avança um quadro; 0 = terminou
+# vídeos Mobiclip: o decodificador do overlay 127 roda no interpretador ARM (runtime/arm_interp.c).
+# Para voltar a pular os vídeos, descomente:
+# arm9 0202e520 hle_Movie_Open            # abre e pré-decodifica o vídeo
+# arm9 0202e78c hle_Movie_Update          # avança um quadro; 0 = terminou
 
 # tarefas cooperativas (corrotinas com pilha própria) do jogo: fibras do host (runtime/threads.c)
 arm9 0206efd8 hle_Task_Resume           # retoma a tarefa atual
