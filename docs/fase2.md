@@ -104,7 +104,11 @@ Próximo: depois de "Novo Jogo" aparece o aviso de save adulterado; ver por que 
 
 ## Limitações conhecidas
 
-- Sem 3D, janelas e blending no vídeo; sem som; vídeos Mobiclip pulados.
+- 3D por software (`runtime/gx.c`): pilhas de matrizes, luz, recorte, os 7 formatos de textura, translucidez,
+  neblina, testes de caixa/posição. Faltam polígonos de sombra, marcação de bordas e antisserrilhado.
+- O envio assíncrono de comandos 3D (MI_SendGXCommandAsync) depende da IRQ do GXFIFO, que aqui é por nível
+  (o FIFO está sempre vazio); `rt_check_irq` repete enquanto houver IRQ pendente.
+- Sem janelas no vídeo 2D (o blending é simples); sem som; vídeos Mobiclip pulados.
 - O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
 - Só compila em Linux/macOS por enquanto: as threads do jogo usam `ucontext`; no Windows será preciso trocar por Fibers.
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.

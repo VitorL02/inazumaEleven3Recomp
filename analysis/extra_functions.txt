@@ -70,3 +70,12 @@ ov016 020f3c08 arm
 ov016 02114bf8 arm
 arm9 0201fb20 arm
 ov016 020f3b6c arm
+arm9 02000db8 arm
+arm9 02000d98 arm
+arm9 02000da8 arm
+arm9 02000dc8 arm
+arm9 02000d88 arm
+arm9 02000d78 arm
+arm9 02000d0c arm
+arm9 0201fac0 arm
+ov000 020bdbe8 arm

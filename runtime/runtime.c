@@ -7,6 +7,7 @@
 #include "overlays.h"
 #include "video.h"
 #include "rom.h"
+#include "gx.h"
 
 uint8_t g_main[4 << 20];
 uint8_t g_itcm[32 << 10];
@@ -128,7 +129,7 @@ static void dma_run(Cpu *c, int ch) {
     uint32_t cnt = io_get32(base + 8);
     if (!(cnt >> 31)) return;
     uint32_t timing = (cnt >> 27) & 7;
-    if (timing != 0) return; /* só DMA imediato por enquanto */
+    if (timing != 0 && timing != 7) return; /* imediato e GXFIFO (o FIFO 3D aceita tudo na hora) */
     uint32_t src = io_get32(base), dst = io_get32(base + 4);
     uint32_t n = cnt & 0x1FFFFF; if (!n) n = 0x200000;
     int w32 = (cnt >> 26) & 1, sz = w32 ? 4 : 2;
@@ -348,6 +349,7 @@ uint32_t mem_rd32_slow(Cpu *c, uint32_t a) {
         uint32_t off = a & 0xFFFFFF;
         if (off == 0x100000) return fifo_pop_rx(); /* IPC FIFO RECV */
         if (off == 0x100010) return card_next_word(c);
+        if (off >= 0x600 && off < 0x6A4) return gx_read32(off);
         if (off < 0x2000) return io_rd16(c, off) | (io_rd16(c, off + 2) << 16);
         return 0;
     }
@@ -356,7 +358,11 @@ uint32_t mem_rd32_slow(Cpu *c, uint32_t a) {
     uint32_t v; memcpy(&v, p, 4); return v;
 }
 uint32_t mem_rd16_slow(Cpu *c, uint32_t a) {
-    if (is_io(a)) { uint32_t off = a & 0xFFFFFF; return off < 0x2000 ? io_rd16(c, off) : 0; }
+    if (is_io(a)) {
+        uint32_t off = a & 0xFFFFFF;
+        if (off >= 0x600 && off < 0x6A4) return (gx_read32(off & ~3u) >> ((off & 2) * 8)) & 0xFFFF;
+        return off < 0x2000 ? io_rd16(c, off) : 0;
+    }
     uint8_t *p = mem_ptr(a, 0);
     if (!p) return (a >> 24) == 8 || (a >> 24) == 9 ? 0xFFFF : 0;
     uint16_t v; memcpy(&v, p, 2); return v;
@@ -370,6 +376,7 @@ uint32_t mem_rd8_slow(Cpu *c, uint32_t a) {
 void mem_wr32_slow(Cpu *c, uint32_t a, uint32_t v) {
     if (is_io(a)) {
         uint32_t off = a & 0xFFFFFF;
+        if (off >= 0x400 && off < 0x700) { gx_write32(off, v); if (off == 0x600) rt_check_irq(c); return; }
         if (off < 0x2000) { io_wr16(c, off, v & 0xFFFF); io_wr16(c, off + 2, v >> 16); }
         return;
     }
@@ -607,29 +614,34 @@ extern void video_present(void);
 void rt_after_irq(Cpu *c);
 /* entrega IRQs pendentes se IME=1 e CPSR.I=0 (como o hardware faria) */
 void rt_check_irq(Cpu *c) {
-    if (g_in_irq || c->I || !(io_get32(0x208) & 1)) return;
-    uint32_t pend = io_get32(0x210) & io_get32(0x214);
-    if (!pend) return;
-    g_in_irq = 1;
-    Cpu save = *c;
-    switch_mode(c, 0x12); /* handlers rodam em modo IRQ, na pilha de IRQ: o reschedule fica adiado */
-    for (int b = 0; b < 32; b++) {
-        if (!(pend >> b & 1)) continue;
-        io_set32(0x214, io_get32(0x214) & ~(1u << b));
-        uint32_t h = rd32(c, DTCM_BASE + b * 4);
-        static int logged[32];
-        if (getenv("RECOMP_IRQLOG") && logged[b]++ < 3) fprintf(stderr, "[irq] bit %d handler %08x quadro %llu\n", b, h, (unsigned long long)g_frame);
-        if (!h) continue;
-        c->I = 1;
-        c->r[14] = 0xFFFF0018u;
-        rt_call(c, h);
+    /* repete enquanto houver IRQ pendente: a do GXFIFO é por nível e o envio assíncrono de comandos 3D
+     * (MI_SendGXCommandAsync) manda um pedaço por IRQ até acabar */
+    for (int round = 0; round < 256; round++) {
+        if (gx_fifo_irq()) io_set32(0x214, io_get32(0x214) | (1u << 21));
+        if (g_in_irq || c->I || !(io_get32(0x208) & 1)) return;
+        uint32_t pend = io_get32(0x210) & io_get32(0x214);
+        if (!pend) return;
+        g_in_irq = 1;
+        Cpu save = *c;
+        switch_mode(c, 0x12); /* handlers rodam em modo IRQ, na pilha de IRQ: o reschedule fica adiado */
+        for (int b = 0; b < 32; b++) {
+            if (!(pend >> b & 1)) continue;
+            io_set32(0x214, io_get32(0x214) & ~(1u << b));
+            uint32_t h = rd32(c, DTCM_BASE + b * 4);
+            static int logged[32];
+            if (getenv("RECOMP_IRQLOG") && logged[b]++ < 3) fprintf(stderr, "[irq] bit %d handler %08x quadro %llu\n", b, h, (unsigned long long)g_frame);
+            if (!h) continue;
+            c->I = 1;
+            c->r[14] = 0xFFFF0018u;
+            rt_call(c, h);
+        }
+        int rsp = c->rsp;
+        uint32_t irq_sp = c->r[13];
+        *c = save; c->rsp = rsp;
+        c->bank_sp[0x12] = irq_sp;
+        g_in_irq = 0;
+        rt_after_irq(c);
     }
-    int rsp = c->rsp;
-    uint32_t irq_sp = c->r[13];
-    *c = save; c->rsp = rsp;
-    c->bank_sp[0x12] = irq_sp;
-    g_in_irq = 0;
-    rt_after_irq(c);
 }
 static void raise_irq(Cpu *c, uint32_t bits) {
     io_set32(0x214, io_get32(0x214) | bits);
@@ -643,6 +655,7 @@ void rt_vblank(Cpu *c) {
     /* contador de VBlank que o ARM7 mantém em 02FFFC3C (OS_GetVBlankCount); o laço principal usa a
      * diferença dele como "quadros passados" para todas as contagens de tempo do jogo */
     wr32(c, 0x02FFFC3C, rd32(c, 0x02FFFC3C) + 1);
+    gx_vblank(g_io);
     input_update(c);
     io_set32(0x214, io_get32(0x214) | 1);
     { uint32_t I = c->I; c->I = 0; rt_check_irq(c); c->I = I; } /* halt acorda com IRQ mesmo com I=1 */

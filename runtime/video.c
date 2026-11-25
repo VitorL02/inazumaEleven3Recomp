@@ -1,10 +1,11 @@
 /* Renderizador 2D dos motores A e B do DS, por linha.
  * Cobre: mapeamento dos bancos de VRAM, BGs de texto, afins e estendidos (bitmap 8/16 bits),
  * sprites (normais e afins, 4/8 bits, 1D/2D, paletas estendidas), prioridades,
- * modo de exibição VRAM, troca de telas e brilho mestre. Ainda não há janelas, blending nem 3D. */
+ * modo de exibição VRAM, troca de telas e brilho mestre. BG0 3D vem do gx.c. Há blending simples (sem janelas). */
 #include <string.h>
 #include <stdlib.h>
 #include "video.h"
+#include "gx.h"
 
 uint8_t g_pal[2 << 10];
 uint8_t g_oam[2 << 10];
@@ -15,6 +16,8 @@ static uint8_t *g_bank[9];
 static uint8_t *g_page[1024];
 /* paletas estendidas: [motor][0 = BG (4 slots de 8 KB), 1 = OBJ (8 KB)] */
 static uint8_t *g_bgext[2][4], *g_objext[2];
+/* slots de textura (4 x 128 KB) e de paleta de textura (8 x 16 KB) do motor 3D */
+static uint8_t *g_tex[4], *g_texpal[8];
 
 static void map_range(uint32_t base, uint32_t region_size, uint32_t off, int bank) {
     /* mapeia o banco em base+off e espelha dentro da região */
@@ -34,6 +37,7 @@ void video_remap(const uint8_t *io) {
     for (int i = 0; i < 9; i++) if (!g_bank[i]) g_bank[i] = calloc(1, bank_size[i]);
     memset(g_page, 0, sizeof g_page);
     memset(g_bgext, 0, sizeof g_bgext); memset(g_objext, 0, sizeof g_objext);
+    memset(g_tex, 0, sizeof g_tex); memset(g_texpal, 0, sizeof g_texpal);
     static const uint32_t lcdc[9] = {0x6800000, 0x6820000, 0x6840000, 0x6860000, 0x6880000, 0x6890000, 0x6894000, 0x6898000, 0x68A0000};
     for (int b = 0; b < 9; b++) {
         uint8_t cnt = io[0x240 + (b < 7 ? b : b + 1)];
@@ -47,12 +51,14 @@ void video_remap(const uint8_t *io) {
             else if (mst == 2 && b <= 1) map_range(0x6400000, 0x40000, 0x20000 * (ofs & 1), b);
             else if (mst == 4 && b == 2) map_range(0x6200000, 0x20000, 0, b);
             else if (mst == 4 && b == 3) map_range(0x6600000, 0x20000, 0, b);
+            else if (mst == 3) g_tex[ofs] = g_bank[b];
             break;
         case 4:
             if (mst == 0) map_range(lcdc[b], 0x100000, 0, b);
             else if (mst == 1) map_range(0x6000000, 0x80000, 0, b);
             else if (mst == 2) map_range(0x6400000, 0x40000, 0, b);
             else if (mst == 4) for (int s = 0; s < 4; s++) g_bgext[0][s] = g_bank[b] + s * 0x2000;
+            else if (mst == 3) for (int s = 0; s < 4; s++) g_texpal[s] = g_bank[b] + s * 0x4000;
             break;
         case 5: case 6: {
             uint32_t o = 0x4000 * (ofs & 1) + 0x10000 * (ofs >> 1);
@@ -61,6 +67,7 @@ void video_remap(const uint8_t *io) {
             else if (mst == 2) map_range(0x6400000, 0x40000, o, b);
             else if (mst == 4) { g_bgext[0][(ofs & 1) * 2] = g_bank[b]; g_bgext[0][(ofs & 1) * 2 + 1] = g_bank[b] + 0x2000; }
             else if (mst == 5) g_objext[0] = g_bank[b];
+            else if (mst == 3) g_texpal[(ofs & 1) + (ofs >> 1) * 4] = g_bank[b];
             break; }
         case 7:
             if (mst == 0) map_range(lcdc[b], 0x100000, 0, b);
@@ -77,6 +84,15 @@ void video_remap(const uint8_t *io) {
     }
 }
 
+uint8_t *video_tex_ptr(uint32_t off) {
+    uint8_t *b = g_tex[(off >> 17) & 3];
+    return b ? b + (off & 0x1FFFF) : NULL;
+}
+uint8_t *video_texpal_ptr(uint32_t off) {
+    if (off >= 0x20000) return NULL;
+    uint8_t *b = g_texpal[off >> 14];
+    return b ? b + (off & 0x3FFF) : NULL;
+}
 uint8_t *video_vram_ptr(uint32_t a) {
     if (a < 0x06000000 || a >= 0x07000000) return NULL;
     if (a >= 0x06800000 && a >= 0x068A4000) return NULL;
@@ -291,7 +307,15 @@ static void render_engine(const uint8_t *io, int eng, uint32_t *fb) {
         Line bg[4]; memset(bg, 0, sizeof bg);
         for (int n = 0; n < 4; n++) {
             if (!((dispcnt >> (8 + n)) & 1)) continue;
-            if (n == 0 && !eng && (dispcnt & 8)) continue; /* BG0 = 3D: ainda não */
+            if (n == 0 && !eng && (dispcnt & 8)) { /* BG0 = 3D */
+                int hofs = io16(io, 0x10) & 0x1FF; if (hofs & 0x100) hofs -= 0x200;
+                for (int x = 0; x < 256; x++) {
+                    int sx = x + hofs; if (sx < 0 || sx > 255) continue;
+                    int i = y * 256 + sx;
+                    if (g_gx_alpha[i]) bg[0].color[x] = g_gx_color[i] | OPAQUE;
+                }
+                continue;
+            }
             int kind = 0; /* 0 texto, 1 afim, 2 estendido */
             if (n == 2) kind = (bgmode == 2 || bgmode == 4) ? 1 : bgmode == 5 ? 2 : bgmode == 6 ? 2 : 0;
             if (n == 3) kind = (bgmode == 1 || bgmode == 2) ? 1 : (bgmode >= 3 && bgmode <= 5) ? 2 : 0;
@@ -301,18 +325,40 @@ static void render_engine(const uint8_t *io, int eng, uint32_t *fb) {
         }
         if ((dispcnt >> 12) & 1) render_objs(io, eng, y, &obj);
         uint16_t backdrop = pal16(eng * 0x400);
+        uint16_t bldcnt = io16(io, ioff + 0x50), bldalpha = io16(io, ioff + 0x52), bldy = io16(io, ioff + 0x54);
+        int bmode = (bldcnt >> 6) & 3;
+        int eva = bldalpha & 31, evb = (bldalpha >> 8) & 31, evy = bldy & 31;
+        if (eva > 16) eva = 16; if (evb > 16) evb = 16; if (evy > 16) evy = 16;
         for (int x = 0; x < 256; x++) {
-            uint16_t best = backdrop; int bestp = 5;
-            for (int p = 3; p >= 0; p--) {
-                for (int n = 3; n >= 0; n--) {
+            /* as duas camadas visíveis de cima: camada 0-3 = BG, 4 = OBJ, 5 = fundo */
+            uint16_t c1 = backdrop, c2 = backdrop; int l1 = 5, l2 = 5;
+            for (int p = 0; p <= 3 && l2 == 5; p++) {
+                if ((obj.color[x] & OPAQUE) && obj.prio[x] == p) {
+                    if (l1 == 5) { c1 = obj.color[x]; l1 = 4; } else { c2 = obj.color[x]; l2 = 4; break; }
+                }
+                for (int n = 0; n < 4; n++) {
                     if (!((dispcnt >> (8 + n)) & 1)) continue;
                     if ((io16(io, ioff + 0x08 + n * 2) & 3) != p) continue;
-                    if (bg[n].color[x] & OPAQUE) { best = bg[n].color[x]; bestp = p; }
+                    if (!(bg[n].color[x] & OPAQUE)) continue;
+                    if (l1 == 5) { c1 = bg[n].color[x]; l1 = n; } else { c2 = bg[n].color[x]; l2 = n; break; }
                 }
-                if ((obj.color[x] & OPAQUE) && obj.prio[x] == p) { best = obj.color[x]; bestp = p; }
             }
-            (void)bestp;
-            fb[y * 256 + x] = rgb(best & 0x7FFF, bright);
+            uint16_t out = c1 & 0x7FFF;
+            int is3d = l1 == 0 && !eng && (dispcnt & 8);
+            if (is3d && g_gx_alpha[y * 256 + x] < 31 && ((bldcnt >> (8 + l2)) & 1)) {
+                int a = g_gx_alpha[y * 256 + x] + 1;
+                out = (uint16_t)((((c1 & 31) * a + (c2 & 31) * (32 - a)) >> 5) | (((((c1 >> 5) & 31) * a + ((c2 >> 5) & 31) * (32 - a)) >> 5) << 5) |
+                                 (((((c1 >> 10) & 31) * a + ((c2 >> 10) & 31) * (32 - a)) >> 5) << 10));
+            } else if (bmode && ((bldcnt >> l1) & 1)) {
+                int r = c1 & 31, g = (c1 >> 5) & 31, b = (c1 >> 10) & 31;
+                if (bmode == 1 && ((bldcnt >> (8 + l2)) & 1)) {
+                    r = (r * eva + (c2 & 31) * evb) >> 4; g = (g * eva + ((c2 >> 5) & 31) * evb) >> 4; b = (b * eva + ((c2 >> 10) & 31) * evb) >> 4;
+                } else if (bmode == 2) { r += (31 - r) * evy >> 4; g += (31 - g) * evy >> 4; b += (31 - b) * evy >> 4; }
+                else if (bmode == 3) { r -= r * evy >> 4; g -= g * evy >> 4; b -= b * evy >> 4; }
+                if (r > 31) r = 31; if (g > 31) g = 31; if (b > 31) b = 31;
+                out = (uint16_t)(r | g << 5 | b << 10);
+            }
+            fb[y * 256 + x] = rgb(out, bright);
         }
     }
 }

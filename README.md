@@ -7,7 +7,7 @@ Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre**
 
 ## Status
 
-Fase 2 em andamento: o jogo inteiro já é traduzido para C, compila e **roda no PC até o loop principal**, com threads, leitura de arquivos e save. O jogo já passa pelos créditos da tradução e chega à **tela título** ("Ogros ao Ataque!"), e o toque em "Novo Jogo" funciona. Os vídeos Mobiclip ainda são pulados. Tem launcher com escolha da ROM e configurações (FPS, escala, tela cheia, layout). Ainda sem 3D e som.
+Fase 2 em andamento: o jogo inteiro já é traduzido para C, compila e **roda no PC até o loop principal**, com threads, leitura de arquivos e save. O jogo já passa pelos créditos da tradução, pela **tela título** ("Ogros ao Ataque!"), pelo teclado do nome do save e entra no **começo da história**: conversas, mapa e o cenário 3D com o personagem andando. O 3D é um renderizador por software do hardware do DS (`runtime/gx.c`). Os vídeos Mobiclip ainda são pulados. Tem launcher com escolha da ROM e configurações (FPS, escala, tela cheia, layout). Ainda sem som.
 Veja [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
 
 ## Como jogar
