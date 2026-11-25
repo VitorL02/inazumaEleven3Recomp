@@ -18,8 +18,10 @@ make gen && make -j4 SDL=1     # precisa de SDL2 (Linux: libsdl2-dev)
 ./build/ie3 rom.nds --jogar    # ou direto, sem o launcher
 ```
 
-Na primeira vez o launcher pede a ROM: arraste o arquivo `.nds` para a janela (ou passe o caminho na linha de comando).
-Ele confere se é a versão certa pelo SHA-1 e guarda tudo em `ie3recomp.ini`:
+O launcher segue o estilo dos launchers de recomp: menu lateral (Jogar, Gráficos, Controles, Sobre) e funciona com mouse ou teclado.
+Na primeira vez ele pede a ROM: arraste o arquivo `.nds` para a janela (ou passe o caminho na linha de comando).
+Ele confere se é a versão certa pelo SHA-1 e mostra a tela título do jogo, **gerada da sua ROM**: o launcher roda o próprio recomp sem janela até a tela título (`ie3 --capturar-titulo`) e guarda a imagem em `ie3_titulo_<sha>.ppm` ao lado do `.ini`. Nenhuma arte do jogo fica no repositório.
+As opções ficam em `ie3recomp.ini`:
 
 | Opção | Chave no .ini | Valores |
 |---|---|---|

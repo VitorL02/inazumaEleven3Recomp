@@ -25,6 +25,8 @@ CFLAGS += -DHAVE_SDL2 $(shell sdl2-config --cflags)
 LDLIBS += $(shell sdl2-config --libs)
 endif
 
+LDLIBS += -lm
+
 build/ie3: $(OBJS)
 	$(CC) -o $@ $^ $(LDLIBS)
 

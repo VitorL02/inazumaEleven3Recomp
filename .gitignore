@@ -9,3 +9,6 @@ build/
 __pycache__/
 *.pyc
 *.sav
+ie3_titulo_*.ppm
+ie3_titulo_*.ppm.tmp
+ie3recomp.ini

@@ -7,7 +7,7 @@ typedef struct {
 } RomOverlay;
 
 typedef struct {
-    uint8_t *data; size_t size;
+    const uint8_t *data; size_t size;
     char sha1[41];
     uint32_t arm9_off, arm9_entry, arm9_ram, arm9_size;
     uint32_t fat_off;
@@ -16,6 +16,7 @@ typedef struct {
 } Rom;
 
 extern Rom g_romfile;
+extern int g_rom_skip_sha;
 /* Carrega e valida. Retorna 0 se ok; senão escreve o motivo em err. */
 int rom_open(const char *path, char *err, size_t errsz);
 /* Imagem descomprimida do overlay (alocada uma vez e guardada). */

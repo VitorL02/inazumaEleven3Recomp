@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "rom.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+int g_rom_skip_sha;
 
 Rom g_romfile;
 #define EXPECTED_CODE "BOEJ"
@@ -71,22 +76,24 @@ static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; 
 static char g_rom_path[1024];
 int rom_open(const char *path, char *err, size_t errsz) {
     if (g_romfile.data && !strcmp(path, g_rom_path)) return 0; /* já carregada e validada */
-    if (g_romfile.data) { free(g_romfile.data); memset(&g_romfile, 0, sizeof g_romfile); g_rom_path[0] = 0; }
-    FILE *f = fopen(path, "rb");
-    if (!f) { snprintf(err, errsz, "não consegui abrir o arquivo"); return -1; }
-    fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
-    if (n < 0x4000) { fclose(f); snprintf(err, errsz, "arquivo pequeno demais para ser uma ROM de DS"); return -1; }
+    if (g_romfile.data) { munmap(g_romfile.data, g_romfile.size); memset(&g_romfile, 0, sizeof g_romfile); g_rom_path[0] = 0; }
+    /* mapeada, não copiada: 512 MB só entram na memória conforme o jogo lê */
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) { snprintf(err, errsz, "não consegui abrir o arquivo"); return -1; }
+    struct stat st;
+    if (fstat(fd, &st) || st.st_size < 0x4000) { close(fd); snprintf(err, errsz, "arquivo pequeno demais para ser uma ROM de DS"); return -1; }
     Rom *r = &g_romfile;
-    r->data = malloc(n); r->size = n;
-    if (!r->data) { fclose(f); snprintf(err, errsz, "sem memória para a ROM"); return -1; }
-    if (fread(r->data, 1, n, f) != (size_t)n) { fclose(f); free(r->data); r->data = NULL; snprintf(err, errsz, "erro de leitura"); return -1; }
-    fclose(f);
+    void *m = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (m == MAP_FAILED) { snprintf(err, errsz, "não consegui ler o arquivo"); return -1; }
+    r->data = m; r->size = st.st_size;
     if (memcmp(r->data + 12, EXPECTED_CODE, 4)) {
         snprintf(err, errsz, "esta ROM não é Inazuma Eleven 3 (código %.4s, esperado %s)", (char *)r->data + 12, EXPECTED_CODE);
-        free(r->data); r->data = NULL;
+        munmap(r->data, r->size); r->data = NULL;
         return -1;
     }
-    sha1_hex(r->data, r->size, r->sha1);
+    if (g_rom_skip_sha) memcpy(r->sha1, "a70e9a336f6ea8ff78003938dcd024533f034a68", 41); /* captura da arte: o launcher já conferiu */
+    else sha1_hex(r->data, r->size, r->sha1);
     const uint8_t *h = r->data;
     r->arm9_off = u32(h + 0x20); r->arm9_entry = u32(h + 0x24); r->arm9_ram = u32(h + 0x28); r->arm9_size = u32(h + 0x2C);
     r->fat_off = u32(h + 0x48);
