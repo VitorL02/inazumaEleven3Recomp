@@ -13,3 +13,5 @@ ie3_titulo_*.ppm
 ie3_titulo_*.ppm.tmp
 ie3recomp.ini
 build-win/
+build-local/
+preparo/
