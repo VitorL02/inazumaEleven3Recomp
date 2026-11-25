@@ -98,19 +98,34 @@ def prologue_scan(mod, known):
             if a not in known: found.append(a)
     return found
 
+def pointer_scan(target, sources):
+    """Palavras de dados que apontam para `target` (vtables, ponteiros de função, literais)."""
+    found = set()
+    for src in sources:
+        for off in range(0, len(src.data) - 3, 4):
+            v = struct.unpack_from("<I", src.data, off)[0]
+            if target.has(v & ~1):
+                if v & 1: found.add((v & ~1, True))
+                elif v % 4 == 0:
+                    w = target.word(v)
+                    # parece instrução ARM incondicional (evita ponteiros para dados)
+                    if (w >> 28) == 0xE and w not in (0xE0000000,): found.add((v, False))
+    return found
+
 result = {"static": {}, "overlays": {}}
 main = static[0]; itcm = static[1]
 entry = layout["arm9"]["entry"]
 # Módulo estático: ARM9 principal
 f9, c9, e9, u9, _ = analyze(main, [(entry, False)], [itcm])
 extra = prologue_scan(main, f9)
-f9b, c9b, e9b, u9b, _ = analyze(main, [(a, False) for a in extra] + [(a, d["thumb"]) for a, d in f9.items()], [itcm])
+ptr9 = pointer_scan(main, [main, itcm] + [m for m, _ in overlays.values()])
+f9b, c9b, e9b, u9b, _ = analyze(main, [(a, False) for a in extra] + [(a, d["thumb"]) for a, d in f9.items()] + sorted(ptr9), [itcm])
 f9.update({a: d for a, d in f9b.items() if a not in f9})
-fi, *_ = analyze(itcm, [(a, t) for (a, t) in e9b if itcm.has(a)] + [(a, False) for a in prologue_scan(itcm, {})], [main])
+fi, *_ = analyze(itcm, [(a, t) for (a, t) in e9b if itcm.has(a)] + [(a, False) for a in prologue_scan(itcm, {})] + sorted(pointer_scan(itcm, [main, itcm])), [main])
 result["static"] = {
     "arm9": {"ram": main.ram, "size": len(main.data), "functions": len(f9),
              "thumb_functions": sum(1 for d in f9.values() if d["thumb"]),
-             "from_recursion": len(f9) - len(extra), "from_prologue_scan": len(extra),
+             "from_recursion": len(f9) - len(extra), "from_prologue_scan": len(extra), "pointer_seeds": len(ptr9),
              "calls_into_overlay_space": sum(u9b.values()),
              "overlay_call_targets": len(u9b)},
     "itcm": {"ram": itcm.ram, "size": len(itcm.data), "functions": len(fi)},
@@ -126,6 +141,7 @@ for oid, (mod, meta) in sorted(overlays.items()):
             v = mod.word(p)
             if v: seeds.append((v & ~1, bool(v & 1)))
     seeds += [(a, False) for a in prologue_scan(mod, {})]
+    seeds += sorted(pointer_scan(mod, [mod]))
     fo, co, eo, uo, _ = analyze(mod, seeds, [main, itcm])
     tot += len(fo)
     result["overlays"][oid] = {"ram": mod.ram, "size": len(mod.data), "functions": len(fo),

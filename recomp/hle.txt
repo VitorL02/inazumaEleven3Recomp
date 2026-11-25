@@ -1,0 +1,10 @@
+# Funções do jogo substituídas por código nativo do runtime (HLE).
+# módulo  endereço  função C
+arm9 0200e580 hle_FS_LoadOverlay        # FS_LoadOverlay(target, id): copia o overlay extraído e roda os static init
+arm9 0200e5d4 hle_FS_UnloadOverlay      # FS_UnloadOverlay(target, id)
+arm9 0200e390 hle_FS_StartOverlay       # FS_StartOverlay(info): após carga assíncrona da imagem
+arm9 02001728 hle_OSi_RescheduleThread  # troca de thread com fibras do host (runtime/threads.c)
+arm9 020020cc hle_OS_LoadContext        # OS_LoadContext fora do reschedule
+
+# funções que o runtime chama e precisam existir mesmo sem chamador direto
+keep arm9 02001d08                  # OS_SelectThread
