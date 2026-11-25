@@ -17,6 +17,7 @@ const uint8_t *rt_io(void) { return g_io; }
 static uint32_t g_vcount;
 uint64_t g_frame;
 int g_trace;
+static int g_in_irq;
 
 extern const FuncEntry g_funcs[];
 extern const int g_funcs_count;
@@ -523,7 +524,13 @@ void rt_call(Cpu *c, uint32_t target) {
         rt_fatal(c, "nenhuma função conhecida em", target);
     }
     if (g_trace) fprintf(stderr, "[call] %08x\n", target);
+    static int spcheck = -1;
+    if (spcheck < 0) spcheck = getenv("RECOMP_SPCHECK") != NULL;
+    uint32_t sp0 = c->r[13];
     f(c);
+    /* RECOMP_SPCHECK: uma função ARM normal devolve sp como recebeu; avisa quem não devolve */
+    if (spcheck && c->r[13] != sp0 && !g_in_irq)
+        fprintf(stderr, "[spcheck] %08x (volta %08x) mudou sp em %+d\n", target, ret, (int)(c->r[13] - sp0));
     c->rsp--;
 }
 void rt_jump(Cpu *c, uint32_t target) {
@@ -573,7 +580,6 @@ void hle_FS_UnloadOverlay(Cpu *c) {
 
 /* ---------------- IRQ / VBlank ---------------- */
 extern void video_present(void);
-static int g_in_irq;
 void rt_after_irq(Cpu *c);
 /* entrega IRQs pendentes se IME=1 e CPSR.I=0 (como o hardware faria) */
 void rt_check_irq(Cpu *c) {
@@ -610,6 +616,9 @@ void rt_vblank(Cpu *c) {
     g_frame++;
     g_vcount = 192;
     timers_advance(560190);
+    /* contador de VBlank que o ARM7 mantém em 02FFFC3C (OS_GetVBlankCount); o laço principal usa a
+     * diferença dele como "quadros passados" para todas as contagens de tempo do jogo */
+    wr32(c, 0x02FFFC3C, rd32(c, 0x02FFFC3C) + 1);
     input_update(c);
     io_set32(0x214, io_get32(0x214) | 1);
     { uint32_t I = c->I; c->I = 0; rt_check_irq(c); c->I = I; } /* halt acorda com IRQ mesmo com I=1 */
@@ -631,4 +640,20 @@ void hle_OS_WaitIrq(Cpu *c) {
 void rt_init_dispatch(void) {
     g_ht = calloc(HT_SIZE, sizeof *g_ht);
     for (int i = 0; i < g_funcs_count; i++) ht_insert(g_funcs[i].module, g_funcs[i].addr, g_funcs[i].fn);
+}
+
+/* ---------------- vídeos Mobiclip (HLE provisório) ----------------
+ * O decodificador do overlay 127 é assembly escrito à mão com saltos calculados (add pc, rX)
+ * e "chamadas" montadas com add lr, pc; a tradução estática ainda não cobre isso.
+ * Por enquanto os vídeos são pulados: abrir devolve "não abriu" e o player fica parado,
+ * então o laço de espera do jogo (020f2990) sai na hora. */
+void hle_Movie_Open(Cpu *c) {      /* 0202e520(player, nome, ...) */
+    uint32_t p = c->r[0];
+    if (getenv("RECOMP_MOVIELOG")) fprintf(stderr, "[video] pulando vídeo (player %08x, quadro %llu)\n", p, (unsigned long long)g_frame);
+    wr32(c, p + 0x90, 0); wr32(c, p + 0x94, 0); wr32(c, p + 0x98, 0);
+    wr32(c, p + 0x18c, 0);
+    c->r[0] = 0;
+}
+void hle_Movie_Update(Cpu *c) {    /* 0202e78c(player): != 0 enquanto toca */
+    c->r[0] = 0;
 }

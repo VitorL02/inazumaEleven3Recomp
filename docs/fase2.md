@@ -90,9 +90,21 @@ Entrada por roteiro: `RECOMP_INPUT="150-155:A;300-305:TOUCH=128,96;400:START"` (
 
 Variáveis úteis: `RECOMP_PROFILE=1` (com o watchdog, mostra onde o tempo é gasto), `RECOMP_WATCHDOG=<s>` (mostra onde cada thread está se travar), `RECOMP_CARDLOG`, `RECOMP_PXILOG`, `RECOMP_IRQLOG`, `RECOMP_SAVELOG`, `RECOMP_SAVE=<arquivo>`.
 
+## Da tela de créditos à tela título (25/11)
+
+- **Contador de VBlank:** o ARM7 incrementa 02FFFC3C a cada quadro, e o laço principal (0202b13c) usa a diferença dele como "quadros passados". Sem isso nenhuma contagem de tempo andava. Agora o runtime incrementa o contador no `rt_vblank`.
+- **Tabelas de salto** (`add pc, pc, rX, lsl #2`): o tamanho vem do maior `cmp rX, #n` antes da instrução, e as entradas podem ser `pop` além de `b`.
+- **Funções que pulam para trás da entrada** (código compartilhado, ex.: divisão de 64 bits em 0201f954 → 0201f818): o C sai em ordem de endereço, então a função começa com `goto` para a entrada. Afetava 26 funções.
+- **Chamadas montadas à mão** (`add lr, pc, #0` ou `mov lr, pc` seguido de `bx rX`) viram chamadas.
+- **Vídeos Mobiclip** (overlay 127): o decodificador é assembly escrito à mão com saltos calculados (`add pc, r6, r5`). Por enquanto `hle_Movie_Open`/`hle_Movie_Update` pulam os vídeos. Caminho para tocá-los: interpretador ARM para esse overlay ou HLE com um decodificador Mobiclip em C (o FFmpeg tem um).
+- **Tarefas cooperativas do jogo:** até 16 corrotinas com pilha própria dentro da thread principal (0206efd8 retoma, 0206ee5c cede, 0206ede4 termina; tabelas em 020b9d4c..020b9d94). Cada tarefa vira uma fibra do host (`runtime/threads.c`).
+- `RECOMP_SPCHECK=1` avisa quando uma função chamada por `rt_call` devolve `sp` diferente: foi assim que os dois problemas acima apareceram.
+
+Próximo: depois de "Novo Jogo" aparece o aviso de save adulterado; ver por que o save (ie3.sav vazio) é considerado inválido e como o aviso é fechado.
+
 ## Limitações conhecidas
 
-- Sem 3D, janelas e blending no vídeo; sem som.
+- Sem 3D, janelas e blending no vídeo; sem som; vídeos Mobiclip pulados.
 - O tempo só anda no VBlank e no halt; o ritmo de 60 quadros por segundo vem do limitador da janela.
 - Só compila em Linux/macOS por enquanto: as threads do jogo usam `ucontext`; no Windows será preciso trocar por Fibers.
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.

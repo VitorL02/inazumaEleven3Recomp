@@ -117,29 +117,61 @@ class FuncGen:
                     if cond == 0xE:
                         # tabela de salto
                         if self.jump_table(w):
-                            p = a + 8
-                            while mod.has(p) and (mod.word(p) >> 24) == 0xEA:
-                                t = (p + 8 + sx(mod.word(p) & 0xFFFFFF, 24) * 4) & 0xFFFFFFFF
+                            for p in self.jump_table_entries(mod, a):
                                 self.labels.add(p)
                                 work.append(p)
-                                p += 4
                         break
                     if self.jump_table(w):
-                        p = a + 8
-                        while mod.has(p) and (mod.word(p) >> 24) == 0xEA:
+                        for p in self.jump_table_entries(mod, a):
                             self.labels.add(p)
                             work.append(p)
-                            p += 4
                 a = nxt
         self.order = sorted(self.insns)
+
+    def jump_table_entries(self, mod, a):
+        """Entradas de 'add pc, pc, rX, lsl #2': o tamanho vem do 'cmp rX, #n' logo antes (n+1 entradas).
+        As entradas podem ser 'b', 'pop {..., pc}' ou qualquer outra instrução."""
+        w = mod.word(a)
+        rm = w & 0xF
+        n = 0  # maior 'cmp rm, #imm' logo antes (pode haver 'cmp #0' + 'cmp #N' para faixa com sinal)
+        for back in range(1, 7):
+            q = a - 4 * back
+            if not mod.has(q):
+                break
+            v = mod.word(q)
+            if (v & 0x0FF00000) == 0x03500000 and ((v >> 16) & 0xF) == rm:
+                rot = ((v >> 8) & 0xF) * 2
+                imm = ((v & 0xFF) >> rot | (v & 0xFF) << (32 - rot)) & 0xFFFFFFFF
+                if imm < 512:
+                    n = max(n, imm + 1)
+        out, p = [], a + 8
+        while mod.has(p) and ((mod.word(p) >> 24) == 0xEA or len(out) < n):
+            out.append(p)
+            p += 4
+        return out
 
     @staticmethod
     def jump_table(w):
         # addCC pc, pc, rX, lsl #2
         return (w & 0x0FFFFFF0) == 0x008FF100
 
-    @staticmethod
-    def is_terminator(w, a):
+    def link_call(self, w, a):
+        """'mov lr, pc' ou 'add lr, pc, #0' logo antes de 'bx rX' / 'mov pc, rX': é uma chamada
+        (usado no decodificador Mobiclip escrito à mão) e a execução volta para a+4."""
+        if not self.mod.has(a - 4):
+            return False
+        prev = self.mod.word(a - 4)
+        if prev not in (0xE1A0E00F, 0xE28FE000):
+            return False
+        if (w & 0xFFFFFFF0) == 0xE12FFF10 and (w & 15) != 14:
+            return True
+        if (w & 0xFFFFFFF0) == 0xE1A0F000 and (w & 15) not in (14, 15):
+            return True
+        return False
+
+    def is_terminator(self, w, a):
+        if self.link_call(w, a):
+            return False
         cond = w >> 28
         if (w & 0x0FFFFFF0) == 0x012FFF10:  # bx
             return True
@@ -240,6 +272,9 @@ class FuncGen:
     def translate_body(self, a, w):
         op = (w >> 25) & 7
         # ---- BX / BLX reg
+        if self.link_call(w, a):
+            rm = w & 15
+            return f"{{ uint32_t t_ = c->r[{rm}]; c->r[14] = 0x{a + 4:08x}u; rt_call(c, t_); }}"
         if (w & 0x0FFFFFF0) == 0x012FFF10:
             rm = w & 15
             if rm == 14:
@@ -544,6 +579,11 @@ class FuncGen:
         self.discover()
         name = self.fname(self.mod, self.addr)
         out = [f"void {name}(Cpu *c) {{"]
+        if self.order and self.order[0] != self.addr:
+            # a função salta para código compartilhado em endereço menor que a entrada
+            # (ex.: divisão de 64 bits): o C sai em ordem de endereço, então começa com um goto
+            self.labels.add(self.addr)
+            out.append(f"  goto L_{self.addr:08x};")
         prev = None
         for a in self.order:
             if prev is not None and a != prev + 4 and not self.ends_flow(self.insns[prev], prev):

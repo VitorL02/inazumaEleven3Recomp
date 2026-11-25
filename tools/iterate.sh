@@ -8,5 +8,5 @@ for i in $(seq 1 "$N"); do
   after=$(wc -l < analysis/extra_functions.txt 2>/dev/null || echo 0)
   if [ "$after" = "$before" ]; then echo "rodada $i: parou por outro motivo"; tail -20 build/last_run.log; exit 0; fi
   echo "rodada $i: nova função $(tail -1 analysis/extra_functions.txt)"
-  make gen >/dev/null && make -j"$(nproc)" >/dev/null || exit 1
+  make gen >/dev/null && make -j"$(nproc)" $MAKEFLAGS_EXTRA >/dev/null || exit 1
 done

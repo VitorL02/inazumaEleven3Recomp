@@ -137,3 +137,91 @@ void rt_dump_threads(void) {
         fprintf(stderr, "\n");
     }
 }
+
+/* ---------------- tarefas cooperativas do jogo (corrotinas) ----------------
+ * Além das threads do SDK, o jogo tem um sistema próprio de tarefas (até 16) que rodam dentro
+ * da thread principal, cada uma com a sua pilha. O laço principal chama 0206f014, que retoma
+ * a tarefa atual (0206efd8); a tarefa devolve o controle com 0206ee5c (por quadro) e termina em
+ * 0206ede4. No DS isso é troca de sp na mão; aqui cada tarefa ganha uma fibra do host.
+ *   020b9d4c  sp salvo do laço principal
+ *   020b9d50  índice da tarefa atual
+ *   020b9d54  sp salvo de cada tarefa (0 = livre)
+ *   020b9d94  função de cada tarefa */
+#define TASK_MAX 16
+#define TASK_CUR 0x020b9d50u
+#define TASK_SP  0x020b9d54u
+static Fiber *g_task_fiber[TASK_MAX];
+static Fiber *g_task_parent;   /* fibra do laço principal enquanto uma tarefa roda */
+static int g_task_running = -1;
+
+static Fiber *fiber_alloc_task(void) {
+    for (int i = 0; i < MAX_FIBERS; i++) if (g_fibers[i].used == 2) { g_fibers[i].used = 1; return &g_fibers[i]; } /* reaproveita pilha */
+    Fiber *f = fiber_new(0);
+    f->uc.uc_stack.ss_sp = NULL;
+    return f;
+}
+static void task_entry(void) {
+    Cpu *c = g_cpu_main;
+    int idx = g_task_running;
+    uint32_t sp = rd32(c, TASK_SP + idx * 4);
+    /* o quadro inicial montado por 0206ef20 tem 14 palavras; o trampolim 0206eef8 chama a função */
+    c->r[13] = sp + 14 * 4;
+    c->rsp = 0;
+    c->r[14] = 0;
+    rt_call(c, 0x0206eef8u); /* termina em hle_Task_Finish, que não volta */
+    rt_fatal(c, "tarefa voltou depois de terminar", idx);
+}
+/* troca da fibra atual para `to`, passando a ela a identidade (ctx) da thread do SDK */
+static void task_swap(Cpu *c, Fiber *to, int fresh) {
+    Fiber *me = g_cur;
+    to->ctx = me->ctx; me->ctx = 0;
+    me->saved = *c;
+    g_cur = to;
+    if (fresh) {
+        getcontext(&to->uc);
+        if (!to->uc.uc_stack.ss_sp) to->uc.uc_stack.ss_sp = malloc(FIBER_STACK);
+        to->uc.uc_stack.ss_size = FIBER_STACK;
+        to->uc.uc_link = NULL;
+        makecontext(&to->uc, task_entry, 0);
+    } else {
+        *c = to->saved;
+    }
+    swapcontext(&me->uc, &to->uc);
+    *c = me->saved;
+}
+static void ensure_main_fiber(Cpu *c) {
+    g_cpu_main = c;
+    if (!g_cur) g_cur = fiber_new(rd32(c, rd32(c, TI_BASE + 8)));
+}
+/* 0206efd8: retoma a tarefa atual (chamada pelo laço principal; volta quando ela cede ou termina) */
+void hle_Task_Resume(Cpu *c) {
+    ensure_main_fiber(c);
+    int idx = (int)rd32(c, TASK_CUR);
+    if (idx < 0 || idx >= TASK_MAX) rt_fatal(c, "tarefa inválida", idx);
+    wr32(c, 0x020b9d4cu, c->r[13]);
+    int fresh = !g_task_fiber[idx];
+    if (fresh) g_task_fiber[idx] = fiber_alloc_task();
+    g_task_parent = g_cur;
+    g_task_running = idx;
+    task_swap(c, g_task_fiber[idx], fresh);
+    g_task_running = -1;
+}
+/* 0206ee5c: a tarefa cede o resto do quadro */
+void hle_Task_Yield(Cpu *c) {
+    if (g_task_running < 0 || !g_task_parent) rt_fatal(c, "yield fora de tarefa", c->r[14]);
+    uint32_t keep[13];
+    memcpy(keep, c->r, sizeof keep); /* a versão original salva r0-r12 e devolve iguais */
+    task_swap(c, g_task_parent, 0);
+    memcpy(c->r, keep, sizeof keep);
+}
+/* 0206ede4: a tarefa terminou */
+void hle_Task_Finish(Cpu *c) {
+    int idx = g_task_running;
+    if (idx < 0) rt_fatal(c, "fim de tarefa fora de tarefa", c->r[14]);
+    wr32(c, TASK_SP + idx * 4, 0);
+    Fiber *me = g_task_fiber[idx];
+    g_task_fiber[idx] = NULL;
+    me->used = 2; /* a pilha volta a ser usada por outra tarefa */
+    task_swap(c, g_task_parent, 0);
+    rt_fatal(c, "tarefa terminada foi retomada", idx);
+}
