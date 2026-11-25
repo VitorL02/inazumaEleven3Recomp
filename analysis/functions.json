@@ -1,0 +1,1088 @@
+{
+ "static": {
+  "arm9": {
+   "ram": 33554432,
+   "size": 604448,
+   "functions": 3364,
+   "thumb_functions": 6,
+   "from_recursion": 677,
+   "from_prologue_scan": 2687,
+   "calls_into_overlay_space": 734,
+   "overlay_call_targets": 296
+  },
+  "itcm": {
+   "ram": 33521664,
+   "size": 15648,
+   "functions": 45
+  }
+ },
+ "overlays": {
+  "0": {
+   "ram": 34327360,
+   "size": 103872,
+   "functions": 368,
+   "thumb_functions": 0,
+   "calls_to_static": 868,
+   "calls_outside": 436
+  },
+  "1": {
+   "ram": 34327360,
+   "size": 182592,
+   "functions": 691,
+   "thumb_functions": 0,
+   "calls_to_static": 897,
+   "calls_outside": 1536
+  },
+  "2": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "3": {
+   "ram": 34327360,
+   "size": 2304,
+   "functions": 18,
+   "thumb_functions": 0,
+   "calls_to_static": 44,
+   "calls_outside": 13
+  },
+  "4": {
+   "ram": 34327360,
+   "size": 127872,
+   "functions": 323,
+   "thumb_functions": 0,
+   "calls_to_static": 787,
+   "calls_outside": 584
+  },
+  "5": {
+   "ram": 34327360,
+   "size": 4224,
+   "functions": 33,
+   "thumb_functions": 0,
+   "calls_to_static": 51,
+   "calls_outside": 17
+  },
+  "6": {
+   "ram": 34327360,
+   "size": 5472,
+   "functions": 33,
+   "thumb_functions": 0,
+   "calls_to_static": 64,
+   "calls_outside": 13
+  },
+  "7": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "8": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "9": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "10": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "11": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "12": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "13": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "14": {
+   "ram": 34327360,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "15": {
+   "ram": 34327360,
+   "size": 172544,
+   "functions": 920,
+   "thumb_functions": 0,
+   "calls_to_static": 876,
+   "calls_outside": 123
+  },
+  "16": {
+   "ram": 34528864,
+   "size": 180320,
+   "functions": 1049,
+   "thumb_functions": 0,
+   "calls_to_static": 1447,
+   "calls_outside": 27
+  },
+  "17": {
+   "ram": 34528864,
+   "size": 155200,
+   "functions": 930,
+   "thumb_functions": 13,
+   "calls_to_static": 431,
+   "calls_outside": 44
+  },
+  "18": {
+   "ram": 34709248,
+   "size": 7680,
+   "functions": 24,
+   "thumb_functions": 0,
+   "calls_to_static": 27,
+   "calls_outside": 24
+  },
+  "19": {
+   "ram": 34709248,
+   "size": 10528,
+   "functions": 55,
+   "thumb_functions": 0,
+   "calls_to_static": 41,
+   "calls_outside": 50
+  },
+  "20": {
+   "ram": 34709248,
+   "size": 19448,
+   "functions": 63,
+   "thumb_functions": 0,
+   "calls_to_static": 88,
+   "calls_outside": 198
+  },
+  "21": {
+   "ram": 34709248,
+   "size": 13940,
+   "functions": 53,
+   "thumb_functions": 0,
+   "calls_to_static": 60,
+   "calls_outside": 129
+  },
+  "22": {
+   "ram": 34709248,
+   "size": 36836,
+   "functions": 92,
+   "thumb_functions": 0,
+   "calls_to_static": 215,
+   "calls_outside": 154
+  },
+  "23": {
+   "ram": 34709248,
+   "size": 12704,
+   "functions": 32,
+   "thumb_functions": 0,
+   "calls_to_static": 27,
+   "calls_outside": 98
+  },
+  "24": {
+   "ram": 34709248,
+   "size": 14752,
+   "functions": 35,
+   "thumb_functions": 0,
+   "calls_to_static": 34,
+   "calls_outside": 136
+  },
+  "25": {
+   "ram": 34709248,
+   "size": 6816,
+   "functions": 29,
+   "thumb_functions": 0,
+   "calls_to_static": 46,
+   "calls_outside": 103
+  },
+  "26": {
+   "ram": 34709248,
+   "size": 7168,
+   "functions": 17,
+   "thumb_functions": 0,
+   "calls_to_static": 60,
+   "calls_outside": 93
+  },
+  "27": {
+   "ram": 34709248,
+   "size": 2432,
+   "functions": 13,
+   "thumb_functions": 0,
+   "calls_to_static": 11,
+   "calls_outside": 31
+  },
+  "28": {
+   "ram": 34709248,
+   "size": 6528,
+   "functions": 16,
+   "thumb_functions": 0,
+   "calls_to_static": 48,
+   "calls_outside": 108
+  },
+  "29": {
+   "ram": 34709248,
+   "size": 40192,
+   "functions": 94,
+   "thumb_functions": 0,
+   "calls_to_static": 168,
+   "calls_outside": 250
+  },
+  "30": {
+   "ram": 34709248,
+   "size": 2240,
+   "functions": 17,
+   "thumb_functions": 0,
+   "calls_to_static": 23,
+   "calls_outside": 21
+  },
+  "31": {
+   "ram": 34709248,
+   "size": 8768,
+   "functions": 34,
+   "thumb_functions": 0,
+   "calls_to_static": 51,
+   "calls_outside": 63
+  },
+  "32": {
+   "ram": 34709248,
+   "size": 2240,
+   "functions": 14,
+   "thumb_functions": 0,
+   "calls_to_static": 51,
+   "calls_outside": 6
+  },
+  "33": {
+   "ram": 34709248,
+   "size": 8992,
+   "functions": 40,
+   "thumb_functions": 0,
+   "calls_to_static": 42,
+   "calls_outside": 72
+  },
+  "34": {
+   "ram": 34709248,
+   "size": 14080,
+   "functions": 53,
+   "thumb_functions": 0,
+   "calls_to_static": 47,
+   "calls_outside": 90
+  },
+  "35": {
+   "ram": 34709248,
+   "size": 8992,
+   "functions": 36,
+   "thumb_functions": 0,
+   "calls_to_static": 36,
+   "calls_outside": 68
+  },
+  "36": {
+   "ram": 34709248,
+   "size": 4096,
+   "functions": 26,
+   "thumb_functions": 0,
+   "calls_to_static": 29,
+   "calls_outside": 28
+  },
+  "37": {
+   "ram": 34709248,
+   "size": 8000,
+   "functions": 44,
+   "thumb_functions": 0,
+   "calls_to_static": 58,
+   "calls_outside": 69
+  },
+  "38": {
+   "ram": 34709248,
+   "size": 13728,
+   "functions": 42,
+   "thumb_functions": 0,
+   "calls_to_static": 72,
+   "calls_outside": 104
+  },
+  "39": {
+   "ram": 34709248,
+   "size": 7904,
+   "functions": 32,
+   "thumb_functions": 0,
+   "calls_to_static": 37,
+   "calls_outside": 38
+  },
+  "40": {
+   "ram": 34709248,
+   "size": 11168,
+   "functions": 49,
+   "thumb_functions": 0,
+   "calls_to_static": 35,
+   "calls_outside": 165
+  },
+  "41": {
+   "ram": 34709248,
+   "size": 34048,
+   "functions": 127,
+   "thumb_functions": 0,
+   "calls_to_static": 142,
+   "calls_outside": 258
+  },
+  "42": {
+   "ram": 34709248,
+   "size": 25148,
+   "functions": 107,
+   "thumb_functions": 0,
+   "calls_to_static": 110,
+   "calls_outside": 143
+  },
+  "43": {
+   "ram": 34709248,
+   "size": 24064,
+   "functions": 100,
+   "thumb_functions": 0,
+   "calls_to_static": 159,
+   "calls_outside": 133
+  },
+  "44": {
+   "ram": 34709248,
+   "size": 34992,
+   "functions": 126,
+   "thumb_functions": 0,
+   "calls_to_static": 165,
+   "calls_outside": 221
+  },
+  "45": {
+   "ram": 34709248,
+   "size": 28060,
+   "functions": 120,
+   "thumb_functions": 0,
+   "calls_to_static": 182,
+   "calls_outside": 214
+  },
+  "46": {
+   "ram": 34709248,
+   "size": 30684,
+   "functions": 104,
+   "thumb_functions": 0,
+   "calls_to_static": 107,
+   "calls_outside": 218
+  },
+  "47": {
+   "ram": 34709248,
+   "size": 23744,
+   "functions": 76,
+   "thumb_functions": 0,
+   "calls_to_static": 60,
+   "calls_outside": 171
+  },
+  "48": {
+   "ram": 34709248,
+   "size": 5280,
+   "functions": 30,
+   "thumb_functions": 0,
+   "calls_to_static": 12,
+   "calls_outside": 61
+  },
+  "49": {
+   "ram": 34709248,
+   "size": 11036,
+   "functions": 40,
+   "thumb_functions": 0,
+   "calls_to_static": 35,
+   "calls_outside": 104
+  },
+  "50": {
+   "ram": 34709248,
+   "size": 19116,
+   "functions": 63,
+   "thumb_functions": 0,
+   "calls_to_static": 100,
+   "calls_outside": 197
+  },
+  "51": {
+   "ram": 34709248,
+   "size": 17984,
+   "functions": 53,
+   "thumb_functions": 0,
+   "calls_to_static": 84,
+   "calls_outside": 206
+  },
+  "52": {
+   "ram": 34709248,
+   "size": 43232,
+   "functions": 167,
+   "thumb_functions": 0,
+   "calls_to_static": 164,
+   "calls_outside": 95
+  },
+  "53": {
+   "ram": 34709248,
+   "size": 19584,
+   "functions": 101,
+   "thumb_functions": 0,
+   "calls_to_static": 119,
+   "calls_outside": 130
+  },
+  "54": {
+   "ram": 34709248,
+   "size": 11488,
+   "functions": 56,
+   "thumb_functions": 0,
+   "calls_to_static": 38,
+   "calls_outside": 176
+  },
+  "55": {
+   "ram": 34709248,
+   "size": 15264,
+   "functions": 44,
+   "thumb_functions": 0,
+   "calls_to_static": 83,
+   "calls_outside": 75
+  },
+  "56": {
+   "ram": 34709248,
+   "size": 30192,
+   "functions": 99,
+   "thumb_functions": 0,
+   "calls_to_static": 160,
+   "calls_outside": 195
+  },
+  "57": {
+   "ram": 34709248,
+   "size": 44544,
+   "functions": 154,
+   "thumb_functions": 0,
+   "calls_to_static": 169,
+   "calls_outside": 422
+  },
+  "58": {
+   "ram": 34709248,
+   "size": 6336,
+   "functions": 38,
+   "thumb_functions": 0,
+   "calls_to_static": 28,
+   "calls_outside": 51
+  },
+  "59": {
+   "ram": 34709248,
+   "size": 21108,
+   "functions": 93,
+   "thumb_functions": 0,
+   "calls_to_static": 77,
+   "calls_outside": 136
+  },
+  "60": {
+   "ram": 34709248,
+   "size": 25632,
+   "functions": 84,
+   "thumb_functions": 0,
+   "calls_to_static": 193,
+   "calls_outside": 150
+  },
+  "61": {
+   "ram": 34709248,
+   "size": 22240,
+   "functions": 90,
+   "thumb_functions": 0,
+   "calls_to_static": 117,
+   "calls_outside": 134
+  },
+  "62": {
+   "ram": 34709248,
+   "size": 29268,
+   "functions": 95,
+   "thumb_functions": 0,
+   "calls_to_static": 101,
+   "calls_outside": 339
+  },
+  "63": {
+   "ram": 34709248,
+   "size": 44164,
+   "functions": 106,
+   "thumb_functions": 0,
+   "calls_to_static": 146,
+   "calls_outside": 442
+  },
+  "64": {
+   "ram": 34709248,
+   "size": 7452,
+   "functions": 21,
+   "thumb_functions": 0,
+   "calls_to_static": 108,
+   "calls_outside": 72
+  },
+  "65": {
+   "ram": 34709248,
+   "size": 12513,
+   "functions": 64,
+   "thumb_functions": 0,
+   "calls_to_static": 59,
+   "calls_outside": 90
+  },
+  "66": {
+   "ram": 34709248,
+   "size": 1568,
+   "functions": 13,
+   "thumb_functions": 0,
+   "calls_to_static": 15,
+   "calls_outside": 7
+  },
+  "67": {
+   "ram": 34709248,
+   "size": 34848,
+   "functions": 157,
+   "thumb_functions": 0,
+   "calls_to_static": 180,
+   "calls_outside": 384
+  },
+  "68": {
+   "ram": 34709248,
+   "size": 24664,
+   "functions": 77,
+   "thumb_functions": 0,
+   "calls_to_static": 76,
+   "calls_outside": 392
+  },
+  "69": {
+   "ram": 34709248,
+   "size": 12064,
+   "functions": 65,
+   "thumb_functions": 0,
+   "calls_to_static": 57,
+   "calls_outside": 134
+  },
+  "70": {
+   "ram": 34709248,
+   "size": 21708,
+   "functions": 61,
+   "thumb_functions": 0,
+   "calls_to_static": 70,
+   "calls_outside": 127
+  },
+  "71": {
+   "ram": 34709248,
+   "size": 4256,
+   "functions": 20,
+   "thumb_functions": 0,
+   "calls_to_static": 26,
+   "calls_outside": 63
+  },
+  "72": {
+   "ram": 34709248,
+   "size": 38720,
+   "functions": 95,
+   "thumb_functions": 0,
+   "calls_to_static": 123,
+   "calls_outside": 290
+  },
+  "73": {
+   "ram": 34709248,
+   "size": 14656,
+   "functions": 49,
+   "thumb_functions": 0,
+   "calls_to_static": 48,
+   "calls_outside": 69
+  },
+  "74": {
+   "ram": 34709248,
+   "size": 8896,
+   "functions": 40,
+   "thumb_functions": 0,
+   "calls_to_static": 61,
+   "calls_outside": 61
+  },
+  "75": {
+   "ram": 34709248,
+   "size": 1504,
+   "functions": 5,
+   "thumb_functions": 0,
+   "calls_to_static": 15,
+   "calls_outside": 10
+  },
+  "76": {
+   "ram": 34709248,
+   "size": 1728,
+   "functions": 11,
+   "thumb_functions": 0,
+   "calls_to_static": 20,
+   "calls_outside": 21
+  },
+  "77": {
+   "ram": 34709248,
+   "size": 1728,
+   "functions": 10,
+   "thumb_functions": 0,
+   "calls_to_static": 31,
+   "calls_outside": 20
+  },
+  "78": {
+   "ram": 34709248,
+   "size": 32,
+   "functions": 0,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "79": {
+   "ram": 34709248,
+   "size": 3072,
+   "functions": 19,
+   "thumb_functions": 0,
+   "calls_to_static": 25,
+   "calls_outside": 33
+  },
+  "80": {
+   "ram": 34709248,
+   "size": 36128,
+   "functions": 129,
+   "thumb_functions": 0,
+   "calls_to_static": 267,
+   "calls_outside": 163
+  },
+  "81": {
+   "ram": 34709248,
+   "size": 13216,
+   "functions": 49,
+   "thumb_functions": 0,
+   "calls_to_static": 45,
+   "calls_outside": 138
+  },
+  "82": {
+   "ram": 34709248,
+   "size": 25440,
+   "functions": 64,
+   "thumb_functions": 0,
+   "calls_to_static": 85,
+   "calls_outside": 222
+  },
+  "83": {
+   "ram": 34709248,
+   "size": 14808,
+   "functions": 42,
+   "thumb_functions": 0,
+   "calls_to_static": 53,
+   "calls_outside": 129
+  },
+  "84": {
+   "ram": 34709248,
+   "size": 8142,
+   "functions": 42,
+   "thumb_functions": 0,
+   "calls_to_static": 50,
+   "calls_outside": 109
+  },
+  "85": {
+   "ram": 34709248,
+   "size": 12800,
+   "functions": 38,
+   "thumb_functions": 0,
+   "calls_to_static": 39,
+   "calls_outside": 123
+  },
+  "86": {
+   "ram": 34709248,
+   "size": 12384,
+   "functions": 57,
+   "thumb_functions": 0,
+   "calls_to_static": 61,
+   "calls_outside": 124
+  },
+  "87": {
+   "ram": 34709248,
+   "size": 13248,
+   "functions": 61,
+   "thumb_functions": 0,
+   "calls_to_static": 54,
+   "calls_outside": 127
+  },
+  "88": {
+   "ram": 34709248,
+   "size": 13408,
+   "functions": 62,
+   "thumb_functions": 0,
+   "calls_to_static": 57,
+   "calls_outside": 129
+  },
+  "89": {
+   "ram": 34709248,
+   "size": 14912,
+   "functions": 65,
+   "thumb_functions": 0,
+   "calls_to_static": 79,
+   "calls_outside": 91
+  },
+  "90": {
+   "ram": 34709248,
+   "size": 14848,
+   "functions": 67,
+   "thumb_functions": 0,
+   "calls_to_static": 50,
+   "calls_outside": 95
+  },
+  "91": {
+   "ram": 34709248,
+   "size": 11296,
+   "functions": 56,
+   "thumb_functions": 0,
+   "calls_to_static": 64,
+   "calls_outside": 106
+  },
+  "92": {
+   "ram": 34753792,
+   "size": 7520,
+   "functions": 33,
+   "thumb_functions": 0,
+   "calls_to_static": 31,
+   "calls_outside": 52
+  },
+  "93": {
+   "ram": 34753792,
+   "size": 1760,
+   "functions": 12,
+   "thumb_functions": 0,
+   "calls_to_static": 18,
+   "calls_outside": 9
+  },
+  "94": {
+   "ram": 34753792,
+   "size": 17664,
+   "functions": 47,
+   "thumb_functions": 0,
+   "calls_to_static": 122,
+   "calls_outside": 91
+  },
+  "95": {
+   "ram": 34753792,
+   "size": 13792,
+   "functions": 40,
+   "thumb_functions": 0,
+   "calls_to_static": 100,
+   "calls_outside": 91
+  },
+  "96": {
+   "ram": 34753792,
+   "size": 4652,
+   "functions": 25,
+   "thumb_functions": 0,
+   "calls_to_static": 24,
+   "calls_outside": 29
+  },
+  "97": {
+   "ram": 34753792,
+   "size": 8672,
+   "functions": 35,
+   "thumb_functions": 0,
+   "calls_to_static": 60,
+   "calls_outside": 75
+  },
+  "98": {
+   "ram": 34753792,
+   "size": 6208,
+   "functions": 28,
+   "thumb_functions": 0,
+   "calls_to_static": 49,
+   "calls_outside": 29
+  },
+  "99": {
+   "ram": 34753792,
+   "size": 2784,
+   "functions": 15,
+   "thumb_functions": 0,
+   "calls_to_static": 25,
+   "calls_outside": 20
+  },
+  "100": {
+   "ram": 34753792,
+   "size": 2624,
+   "functions": 15,
+   "thumb_functions": 0,
+   "calls_to_static": 25,
+   "calls_outside": 20
+  },
+  "101": {
+   "ram": 34753792,
+   "size": 1120,
+   "functions": 10,
+   "thumb_functions": 0,
+   "calls_to_static": 29,
+   "calls_outside": 6
+  },
+  "102": {
+   "ram": 34753792,
+   "size": 1120,
+   "functions": 11,
+   "thumb_functions": 0,
+   "calls_to_static": 29,
+   "calls_outside": 6
+  },
+  "103": {
+   "ram": 34753792,
+   "size": 2688,
+   "functions": 15,
+   "thumb_functions": 0,
+   "calls_to_static": 25,
+   "calls_outside": 33
+  },
+  "104": {
+   "ram": 34753792,
+   "size": 5664,
+   "functions": 26,
+   "thumb_functions": 0,
+   "calls_to_static": 20,
+   "calls_outside": 25
+  },
+  "105": {
+   "ram": 34753792,
+   "size": 11968,
+   "functions": 40,
+   "thumb_functions": 0,
+   "calls_to_static": 88,
+   "calls_outside": 83
+  },
+  "106": {
+   "ram": 34753792,
+   "size": 1824,
+   "functions": 12,
+   "thumb_functions": 0,
+   "calls_to_static": 18,
+   "calls_outside": 11
+  },
+  "107": {
+   "ram": 34753792,
+   "size": 1248,
+   "functions": 10,
+   "thumb_functions": 0,
+   "calls_to_static": 28,
+   "calls_outside": 8
+  },
+  "108": {
+   "ram": 34753792,
+   "size": 10384,
+   "functions": 37,
+   "thumb_functions": 0,
+   "calls_to_static": 28,
+   "calls_outside": 56
+  },
+  "109": {
+   "ram": 34753792,
+   "size": 23728,
+   "functions": 55,
+   "thumb_functions": 0,
+   "calls_to_static": 148,
+   "calls_outside": 131
+  },
+  "110": {
+   "ram": 34753792,
+   "size": 9120,
+   "functions": 35,
+   "thumb_functions": 0,
+   "calls_to_static": 99,
+   "calls_outside": 62
+  },
+  "111": {
+   "ram": 34753792,
+   "size": 4320,
+   "functions": 30,
+   "thumb_functions": 0,
+   "calls_to_static": 26,
+   "calls_outside": 36
+  },
+  "112": {
+   "ram": 34753792,
+   "size": 3168,
+   "functions": 15,
+   "thumb_functions": 0,
+   "calls_to_static": 35,
+   "calls_outside": 24
+  },
+  "113": {
+   "ram": 34753792,
+   "size": 8640,
+   "functions": 35,
+   "thumb_functions": 0,
+   "calls_to_static": 34,
+   "calls_outside": 90
+  },
+  "114": {
+   "ram": 34753792,
+   "size": 5824,
+   "functions": 16,
+   "thumb_functions": 0,
+   "calls_to_static": 8,
+   "calls_outside": 27
+  },
+  "115": {
+   "ram": 34753792,
+   "size": 6048,
+   "functions": 17,
+   "thumb_functions": 0,
+   "calls_to_static": 17,
+   "calls_outside": 22
+  },
+  "116": {
+   "ram": 34753792,
+   "size": 576,
+   "functions": 3,
+   "thumb_functions": 0,
+   "calls_to_static": 6,
+   "calls_outside": 6
+  },
+  "117": {
+   "ram": 34753792,
+   "size": 672,
+   "functions": 3,
+   "thumb_functions": 0,
+   "calls_to_static": 6,
+   "calls_outside": 8
+  },
+  "118": {
+   "ram": 34753792,
+   "size": 4704,
+   "functions": 15,
+   "thumb_functions": 0,
+   "calls_to_static": 13,
+   "calls_outside": 40
+  },
+  "119": {
+   "ram": 34753792,
+   "size": 2624,
+   "functions": 16,
+   "thumb_functions": 0,
+   "calls_to_static": 20,
+   "calls_outside": 37
+  },
+  "120": {
+   "ram": 34753792,
+   "size": 4000,
+   "functions": 11,
+   "thumb_functions": 0,
+   "calls_to_static": 18,
+   "calls_outside": 64
+  },
+  "121": {
+   "ram": 34753792,
+   "size": 3776,
+   "functions": 16,
+   "thumb_functions": 0,
+   "calls_to_static": 15,
+   "calls_outside": 30
+  },
+  "122": {
+   "ram": 34753792,
+   "size": 4672,
+   "functions": 17,
+   "thumb_functions": 0,
+   "calls_to_static": 33,
+   "calls_outside": 31
+  },
+  "123": {
+   "ram": 34753792,
+   "size": 2464,
+   "functions": 16,
+   "thumb_functions": 0,
+   "calls_to_static": 17,
+   "calls_outside": 9
+  },
+  "124": {
+   "ram": 34753792,
+   "size": 7712,
+   "functions": 30,
+   "thumb_functions": 0,
+   "calls_to_static": 50,
+   "calls_outside": 43
+  },
+  "125": {
+   "ram": 34753792,
+   "size": 5984,
+   "functions": 32,
+   "thumb_functions": 0,
+   "calls_to_static": 54,
+   "calls_outside": 30
+  },
+  "126": {
+   "ram": 34777536,
+   "size": 66272,
+   "functions": 255,
+   "thumb_functions": 0,
+   "calls_to_static": 402,
+   "calls_outside": 429
+  },
+  "127": {
+   "ram": 34777536,
+   "size": 51232,
+   "functions": 93,
+   "thumb_functions": 0,
+   "calls_to_static": 28,
+   "calls_outside": 0
+  },
+  "128": {
+   "ram": 34777536,
+   "size": 20448,
+   "functions": 80,
+   "thumb_functions": 0,
+   "calls_to_static": 132,
+   "calls_outside": 0
+  },
+  "129": {
+   "ram": 34777536,
+   "size": 7136,
+   "functions": 6,
+   "thumb_functions": 0,
+   "calls_to_static": 0,
+   "calls_outside": 0
+  },
+  "130": {
+   "ram": 34777536,
+   "size": 640,
+   "functions": 3,
+   "thumb_functions": 0,
+   "calls_to_static": 19,
+   "calls_outside": 0
+  },
+  "131": {
+   "ram": 34843840,
+   "size": 73920,
+   "functions": 290,
+   "thumb_functions": 0,
+   "calls_to_static": 587,
+   "calls_outside": 182
+  },
+  "132": {
+   "ram": 34843840,
+   "size": 153600,
+   "functions": 590,
+   "thumb_functions": 0,
+   "calls_to_static": 910,
+   "calls_outside": 731
+  }
+ },
+ "totals": {
+  "functions": 14286
+ }
+}

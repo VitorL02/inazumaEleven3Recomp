@@ -1,0 +1,10 @@
+# Nunca versionar a ROM nem nada extraído dela
+*.nds
+*.7z
+*.zip
+rom/
+extracted/
+assets/
+build/
+__pycache__/
+*.pyc

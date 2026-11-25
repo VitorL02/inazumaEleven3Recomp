@@ -1,0 +1,2 @@
+ndspy>=4
+capstone>=5
