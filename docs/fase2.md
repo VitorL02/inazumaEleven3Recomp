@@ -13,7 +13,8 @@ Rodando no PC, o código recompilado:
 - carrega overlays (126, 130, 131, 16 e o 5, que é a primeira cena);
 - **entra no loop principal do jogo** (`0202afd0`) e espera VBlank a cada quadro.
 
-Ainda não há vídeo, som nem entrada: o jogo roda "às cegas". O próximo passo é o renderizador 2D para ver a primeira tela.
+Com o renderizador 2D, **a primeira tela já aparece**: os créditos da tradução PT-BR (CyberLife, versão 1.3), com o fade-in do jogo.
+A cena ainda não avança depois disso (investigação em andamento: provavelmente espera algo do ARM7, como o fim de um som).
 
 ## Como funciona
 
@@ -42,7 +43,8 @@ runtime/*.c + build/gen ──make──> build/ie3
 | `runtime.c` | mapa de memória, I/O, divisor/raiz por hardware, DMA, timers, IRQ, cartão, PXI/ARM7 em HLE, save, despacho de funções, overlays |
 | `threads.c` | threads do SDK como fibras do host (`ucontext`), substituindo `OSi_RescheduleThread` |
 | `thumb.c` | interpretador Thumb (o jogo só tem ~60 funções Thumb) |
-| `main.c` | monta a memória como o bootloader deixaria e chama o `crt0` |
+| `video.c` | bancos de VRAM e os dois motores 2D (BGs de texto/afins/bitmap, sprites, paletas estendidas, brilho mestre) |
+| `main.c` | monta a memória como o bootloader deixaria, chama o `crt0`, grava quadros ou abre a janela |
 
 ### Funções substituídas (HLE)
 
@@ -78,11 +80,14 @@ make gen && make -j4
 RECOMP_WATCHDOG=20 ./build/ie3 extracted rom.nds
 ```
 
-Variáveis úteis: `RECOMP_WATCHDOG=<s>` (mostra onde cada thread está se travar), `RECOMP_CARDLOG`, `RECOMP_PXILOG`, `RECOMP_IRQLOG`, `RECOMP_SAVELOG`, `RECOMP_SAVE=<arquivo>`.
+Vídeo: `make SDL=1` abre uma janela (precisa de SDL2). Sem janela, `RECOMP_DUMP=<pasta>` grava quadros PPM a cada `RECOMP_DUMP_EVERY` quadros.
+Entrada por roteiro: `RECOMP_INPUT="150-155:A;300-305:TOUCH=128,96;400:START"` (quadros e teclas A B SELECT START RIGHT LEFT UP DOWN R L X Y).
+
+Variáveis úteis: `RECOMP_PROFILE=1` (com o watchdog, mostra onde o tempo é gasto), `RECOMP_WATCHDOG=<s>` (mostra onde cada thread está se travar), `RECOMP_CARDLOG`, `RECOMP_PXILOG`, `RECOMP_IRQLOG`, `RECOMP_SAVELOG`, `RECOMP_SAVE=<arquivo>`.
 
 ## Limitações conhecidas
 
-- Sem vídeo, som e entrada ainda.
+- Sem 3D, janelas e blending no vídeo; sem som; entrada só por roteiro (teclado/mouse quando houver SDL2).
 - O tempo só anda no VBlank e no halt; não há limite de 60 quadros por segundo.
 - O despacho trata "retorno" usando uma pilha de endereços de retorno; código que manipula a pilha de forma incomum pode confundir isso.
 - 138 instruções sem suporte no código gerado (quase todas em "funções" falsas achadas por ponteiros em dados).

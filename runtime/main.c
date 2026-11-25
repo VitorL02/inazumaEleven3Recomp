@@ -8,12 +8,40 @@
 
 static Cpu *g_cpu;
 void rt_backtrace(Cpu *c);
+/* RECOMP_PROFILE: amostra o endereço de retorno no topo da pilha a cada 1 ms */
+#include <sys/time.h>
+#define PROF_N 4096
+static uint32_t g_prof_addr[PROF_N], g_prof_cnt[PROF_N];
+static void on_prof(int sig) {
+    (void)sig;
+    if (!g_cpu || g_cpu->rsp <= 0) return;
+    for (int d = 1; d <= 3 && d <= g_cpu->rsp; d++) {
+        uint32_t a = g_cpu->rs[g_cpu->rsp - d] ^ (d << 28);
+        uint32_t h = (a * 2654435761u) % PROF_N;
+        for (int i = 0; i < PROF_N; i++, h = (h + 1) % PROF_N) {
+            if (g_prof_addr[h] == a || !g_prof_cnt[h]) { g_prof_addr[h] = a; g_prof_cnt[h]++; break; }
+        }
+    }
+}
+static void prof_dump(void) {
+    for (int d = 1; d <= 3; d++) {
+        fprintf(stderr, "  perfil (profundidade %d):", d);
+        for (int k = 0; k < 8; k++) {
+            int best = -1;
+            for (int i = 0; i < PROF_N; i++) if (g_prof_cnt[i] && (g_prof_addr[i] >> 28) == (uint32_t)d && (best < 0 || g_prof_cnt[i] > g_prof_cnt[best])) best = i;
+            if (best < 0) break;
+            fprintf(stderr, " %07x:%u", g_prof_addr[best] & 0x0FFFFFFF, g_prof_cnt[best]); g_prof_cnt[best] = 0;
+        }
+        fprintf(stderr, "\n");
+    }
+}
 static void on_alarm(int sig) {
     (void)sig;
     fprintf(stderr, "\n[recomp] watchdog: travado. Último lr=%08x sp=%08x\n", g_cpu->r[14], g_cpu->r[13]);
     rt_backtrace(g_cpu);
     extern void rt_dump_threads(void);
     fprintf(stderr, "  threads:\n"); rt_dump_threads();
+    if (getenv("RECOMP_PROFILE")) prof_dump();
     _exit(2);
 }
 
@@ -32,7 +60,49 @@ uint8_t *load_file(const char *path, size_t *size) {
 }
 static void put32(uint32_t a, uint32_t v) { memcpy(g_main + (a & 0x3FFFFF), &v, 4); }
 
-void video_present(void) { /* fase 2: ainda sem janela */ }
+/* Vídeo: com SDL2 abre uma janela; sem SDL2 (ou com RECOMP_DUMP=<pasta>) grava quadros em PPM. */
+#include "video.h"
+extern uint64_t g_frame;
+const uint8_t *rt_io(void);
+static uint32_t g_fb[256 * 384];
+#ifdef HAVE_SDL2
+#include <SDL2/SDL.h>
+static SDL_Window *g_win; static SDL_Renderer *g_ren; static SDL_Texture *g_tex;
+#endif
+void video_present(void) {
+    const char *dump = getenv("RECOMP_DUMP");
+    int every = getenv("RECOMP_DUMP_EVERY") ? atoi(getenv("RECOMP_DUMP_EVERY")) : 60;
+    int want_dump = dump && every > 0 && g_frame % every == 0;
+#ifdef HAVE_SDL2
+    int want_win = !getenv("RECOMP_HEADLESS");
+#else
+    int want_win = 0;
+#endif
+    if (!want_dump && !want_win) return;
+    video_render(rt_io(), g_fb, g_fb + 256 * 192);
+    if (want_dump) {
+        char path[600]; snprintf(path, sizeof path, "%s/frame_%06llu.ppm", dump, (unsigned long long)g_frame);
+        FILE *f = fopen(path, "wb");
+        if (f) {
+            fprintf(f, "P6\n256 384\n255\n");
+            for (int i = 0; i < 256 * 384; i++) { uint8_t px[3] = {g_fb[i] >> 16, g_fb[i] >> 8, g_fb[i]}; fwrite(px, 1, 3, f); }
+            fclose(f);
+        }
+    }
+#ifdef HAVE_SDL2
+    if (want_win) {
+        if (!g_win) {
+            SDL_Init(SDL_INIT_VIDEO);
+            g_win = SDL_CreateWindow("Inazuma Eleven 3 Recomp", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 768, SDL_WINDOW_RESIZABLE);
+            g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_PRESENTVSYNC);
+            g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 384);
+        }
+        SDL_Event e; while (SDL_PollEvent(&e)) if (e.type == SDL_QUIT) exit(0);
+        SDL_UpdateTexture(g_tex, NULL, g_fb, 256 * 4);
+        SDL_RenderClear(g_ren); SDL_RenderCopy(g_ren, g_tex, NULL, NULL); SDL_RenderPresent(g_ren);
+    }
+#endif
+}
 
 int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "uso: %s <pasta extracted> <rom.nds> [--trace]\n", argv[0]); return 1; }
@@ -63,6 +133,12 @@ int main(int argc, char **argv) {
     put32(0x02FFFC00, 0x00001FC2); /* id do cartucho no boot; o SDK compara com o id lido (comando B8) */
     put32(0x02FFF800, 0x00001FC2);
     { uint16_t boot = 1; memcpy(g_main + (0x02FFFC40 & 0x3FFFFF), &boot, 2); } /* OS_BOOTTYPE_ROM: boot pelo cartão */
+    { /* configurações do usuário do firmware (02FFFC80): calibração da tela de toque */
+        uint8_t *u = g_main + (0x02FFFC80 & 0x3FFFFF);
+        uint16_t ax1 = 0x200, ay1 = 0x200, ax2 = 0xE00, ay2 = 0x800;
+        memcpy(u + 0x58, &ax1, 2); memcpy(u + 0x5A, &ay1, 2); u[0x5C] = 0x20; u[0x5D] = 0x20;
+        memcpy(u + 0x5E, &ax2, 2); memcpy(u + 0x60, &ay2, 2); u[0x62] = 0xE0; u[0x63] = 0xA0;
+    }
     put32(0x02FFFC00 + 0x388 + 4, 0xFFFFFFFFu); /* PXI: o ARM7 (HLE) já registrou todos os callbacks */
 
     Cpu *c = calloc(1, sizeof *c);
@@ -70,6 +146,10 @@ int main(int argc, char **argv) {
     c->r[13] = 0x02FFFC00; c->r[14] = 0xFFFF0000u;
     g_cpu = c;
     if (getenv("RECOMP_WATCHDOG")) { signal(SIGALRM, on_alarm); alarm(atoi(getenv("RECOMP_WATCHDOG"))); }
+    if (getenv("RECOMP_PROFILE")) {
+        signal(SIGPROF, on_prof);
+        struct itimerval it = {{0, 1000}, {0, 1000}}; setitimer(ITIMER_PROF, &it, NULL);
+    }
     rt_init_dispatch();
     fprintf(stderr, "[recomp] iniciando _start em 02000800\n");
     c->rs[c->rsp++] = 0xFFFF0000u;

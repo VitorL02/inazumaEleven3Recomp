@@ -5,15 +5,14 @@
 #include "runtime.h"
 #include "thumb.h"
 #include "overlays.h"
+#include "video.h"
 
 uint8_t g_main[4 << 20];
 uint8_t g_itcm[32 << 10];
 uint8_t g_dtcm[16 << 10];
 static uint8_t g_wram[32 << 10];
-static uint8_t g_pal[2 << 10];
-static uint8_t g_oam[2 << 10];
-static uint8_t g_vram[1 << 20];
 static uint8_t g_io[0x2000];
+const uint8_t *rt_io(void) { return g_io; }
 static uint32_t g_vcount;
 uint64_t g_frame;
 int g_trace;
@@ -141,6 +140,7 @@ static void dma_run(Cpu *c, int ch) {
     if ((cnt >> 30) & 1) { io_set32(0x214, io_get32(0x214) | (1u << (8 + ch))); rt_check_irq(c); }
 }
 
+extern uint32_t g_keys; extern int g_touch, g_touch_x, g_touch_y;
 /* ---------------- PXI (FIFO ARM9 <-> ARM7) e ARM7 em HLE ---------------- */
 #define SND_SHARED_WORK_PTR 0x02095920u  /* variável com o ponteiro do SNDi_SharedWork (literal em 0200c3e4) */
 static uint32_t g_fifo_rx[16]; static int g_fifo_rx_n;
@@ -199,7 +199,8 @@ static void arm7_hle_receive(Cpu *c, uint32_t w) {
     switch (tag) {
     case 6: { /* tela de toque: amostra em 02FFFFAA (x 0-11, y 12-23, bit 24 tocando) e responde */
         uint32_t cmd = (data >> 8) & 0x7F;
-        uint32_t tp = 0; /* sem toque por enquanto */
+        /* x 0-11 e y 12-23 em valores brutos do ADC, coerentes com a calibração gravada em main.c */
+        uint32_t tp = g_touch ? ((uint32_t)(g_touch_x * 16) & 0xFFF) | (((uint32_t)(g_touch_y * 12 + 0x80) & 0xFFF) << 12) | (1u << 24) : 0;
         uint16_t lo = tp & 0xFFFF, hi = tp >> 16;
         wr16(c, 0x02FFFFAA, lo); wr16(c, 0x02FFFFAC, hi);
         if (data & 0x1000000) fifo_push_rx(c, ((0x1000000u | (cmd << 8)) << 6) | 6);
@@ -215,6 +216,41 @@ static void arm7_hle_receive(Cpu *c, uint32_t w) {
         break; }
     }
     (void)fifo_push_rx;
+}
+
+/* ---------------- entrada ---------------- */
+/* g_keys: bits pressionados (0 A,1 B,2 SELECT,3 START,4 DIREITA,5 ESQUERDA,6 CIMA,7 BAIXO,8 R,9 L,10 X,11 Y) */
+uint32_t g_keys; int g_touch, g_touch_x, g_touch_y;
+/* Roteiro de entrada para testes sem janela: RECOMP_INPUT="100-110:A;300-305:TOUCH=128,96;..." */
+static void input_script(void) {
+    const char *s = getenv("RECOMP_INPUT");
+    if (!s) return;
+    static const char *names[] = {"A", "B", "SELECT", "START", "RIGHT", "LEFT", "UP", "DOWN", "R", "L", "X", "Y"};
+    uint32_t keys = 0; int touch = 0, tx = 0, ty = 0;
+    const char *p = s;
+    while (*p) {
+        unsigned long a = strtoul(p, (char **)&p, 10), b = a;
+        if (*p == '-') b = strtoul(p + 1, (char **)&p, 10);
+        if (*p == ':') p++;
+        const char *end = strchr(p, ';'); size_t len = end ? (size_t)(end - p) : strlen(p);
+        if (g_frame >= a && g_frame <= b) {
+            char item[64]; snprintf(item, sizeof item, "%.*s", (int)(len < 63 ? len : 63), p);
+            for (char *tok = strtok(item, "+"); tok; tok = strtok(NULL, "+")) {
+                if (!strncmp(tok, "TOUCH=", 6)) { touch = 1; sscanf(tok + 6, "%d,%d", &tx, &ty); continue; }
+                for (int k = 0; k < 12; k++) if (!strcmp(tok, names[k])) keys |= 1u << k;
+            }
+        }
+        p += len; if (*p == ';') p++;
+    }
+    g_keys = keys; g_touch = touch; g_touch_x = tx; g_touch_y = ty;
+}
+static void input_update(Cpu *c) {
+    input_script();
+    /* o ARM7 copia X/Y, caneta e dobradiça para 02FFFFA8 */
+    uint16_t xy = 0x7F & ~((g_keys >> 10) & 3);
+    if (g_touch) xy &= ~0x40;
+    xy &= ~0x80; /* tela aberta */
+    wr16(c, 0x02FFFFA8, xy);
 }
 
 /* ---------------- timers ---------------- */
@@ -244,7 +280,7 @@ static uint32_t io_rd16(Cpu *c, uint32_t off) {
     switch (off) {
     case 0x004: { uint16_t v = io_get16(4) & ~7; if (g_vcount >= 192 && g_vcount < 262) v |= 1; return v; }
     case 0x006: g_vcount = (g_vcount + 1) % 263; return g_vcount;
-    case 0x130: return 0x3FF;        /* nenhum botão */
+    case 0x130: return 0x3FF & ~g_keys;
     case 0x136: return 0x007F;       /* X/Y soltos, tela aberta */
     case 0x184: return (io_get16(0x184) & 0x8404) | 0x0001 | (g_fifo_rx_n ? 0 : 0x100); /* envio sempre vazio */
     case 0x214: case 0x216: return io_get16(off);
@@ -265,6 +301,7 @@ static void io_wr16(Cpu *c, uint32_t off, uint32_t v) {
         else { g_tm_reload[t] = v & 0xFFFF; return; }
     }
     io_set16(off, (uint16_t)v);
+    if (off >= 0x240 && off < 0x24A) video_remap(g_io);
     if (off == 0x1A6 && (v & 0x8000)) card_start(c, io_get32(0x1A4));
     if (off == 0x18A) arm7_hle_receive(c, io_get32(0x188)); /* escrita de 32 bits em IPCFIFOSEND termina aqui */
     if (off >= 0x1A8 && off < 0x1B0) { g_card_cmd[off - 0x1A8] = v & 0xFF; g_card_cmd[off - 0x1A8 + 1] = (v >> 8) & 0xFF; }
@@ -283,7 +320,7 @@ static uint8_t *mem_ptr(uint32_t a, int write) {
     case 0x02: return g_main + (a & 0x3FFFFF);
     case 0x03: return g_wram + (a & 0x7FFF);
     case 0x05: return g_pal + (a & 0x7FF);
-    case 0x06: return g_vram + (a & 0xFFFFF);
+    case 0x06: return video_vram_ptr(a);
     case 0x07: return g_oam + (a & 0x7FF);
     }
     return NULL;
@@ -583,6 +620,7 @@ void rt_vblank(Cpu *c) {
     g_frame++;
     g_vcount = 192;
     timers_advance(560190);
+    input_update(c);
     io_set32(0x214, io_get32(0x214) | 1);
     { uint32_t I = c->I; c->I = 0; rt_check_irq(c); c->I = I; } /* halt acorda com IRQ mesmo com I=1 */
     video_present();
