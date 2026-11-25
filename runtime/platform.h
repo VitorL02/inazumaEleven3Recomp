@@ -11,3 +11,5 @@ void plat_sleep(double sec);
 intptr_t plat_spawn_quiet(const char *exe, const char *const argv[]);
 int plat_proc_done(intptr_t h);  /* 1 se terminou (e libera), 0 se ainda roda */
 void plat_proc_kill(intptr_t h);
+/* Windows sem console (build de janela): manda stderr para <pasta do exe>/<nome>. Nos outros, não faz nada. */
+void plat_log_to_file(const char *self_exe, const char *name);

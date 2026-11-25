@@ -29,6 +29,8 @@ static Cpu *g_c;
 
 #define RING 16384
 static int16_t g_ring[RING * 2];
+static int g_turbo; /* acelerando: só mantém um pouco de áudio na fila, para não atrasar o som depois */
+void snd_set_turbo(int on) { g_turbo = on; }
 static volatile int g_rd, g_wr;
 static FILE *g_wav; static uint32_t g_wav_n;
 
@@ -143,7 +145,7 @@ static void mix(int frames) {
         if (l > 32767) l = 32767; if (l < -32768) l = -32768;
         if (r > 32767) r = 32767; if (r < -32768) r = -32768;
         int nw = (g_wr + 1) % RING;
-        if (nw != g_rd) { g_ring[g_wr * 2] = (int16_t)l; g_ring[g_wr * 2 + 1] = (int16_t)r; g_wr = nw; }
+        if (nw != g_rd && (!g_turbo || (g_wr - g_rd + RING) % RING < 2048)) { g_ring[g_wr * 2] = (int16_t)l; g_ring[g_wr * 2 + 1] = (int16_t)r; g_wr = nw; }
         if (g_wav) { int16_t sm[2] = {(int16_t)l, (int16_t)r}; fwrite(sm, 2, 2, g_wav); g_wav_n++; }
     }
 }

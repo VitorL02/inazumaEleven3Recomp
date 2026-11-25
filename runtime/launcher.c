@@ -490,8 +490,8 @@ static void draw_ctrl(int px, int py) {
         keycap(cx + 110, ry, rows[i][1]);
     }
     int y = py + 266, x = px + 26;
-    static const char *extra[][2] = {{"Tab", "troca a tela"}, {"F11", "tela cheia"}, {"Esc", "sair do jogo"}};
-    for (int i = 0; i < 3; i++) {
+    static const char *extra[][2] = {{"Espaço", "acelera"}, {"Tab", "troca a tela"}, {"F11", "tela cheia"}, {"Esc", "sai"}};
+    for (int i = 0; i < 4; i++) {
         x += keycap(x, y, extra[i][0]) + 8;
         text(FONT_SMALL, x, y + 3, extra[i][1], C_DIM, 255);
         x += text_w(FONT_SMALL, extra[i][1]) + 28;
@@ -502,7 +502,7 @@ static void draw_about(int px, int py, int pw) {
     int x = px + 26, w = pw - 52, y = py + 60;
     y += text_wrap(FONT_BODY, x, y, w, "Recompilação estática de Inazuma Eleven 3: Ogros ao Ataque! (Nintendo DS). O código do jogo foi traduzido de ARM para C e compilado como um programa nativo do PC. Não é emulação: a sua ROM fornece os dados do jogo (gráficos, textos e sons) e o executável confere se ela é a versão certa.", C_TEXT, 255) + 10;
     y += text_wrap(FONT_SMALL, x, y, w, "Este projeto não inclui nenhum arquivo do jogo: você precisa da sua própria cópia. A tradução BR é do Grupo The Ogre Traduction / CyberLife.", C_DIM, 255) + 10;
-    text_wrap(FONT_SMALL, x, y, w, "Em desenvolvimento: 3D, som e vídeos ainda não funcionam.", C_Y1, 255);
+    text_wrap(FONT_SMALL, x, y, w, "Versão de testes: os vídeos ainda são pulados e algumas cenas podem travar.", C_Y1, 255);
 }
 
 void launcher_draw(uint32_t *fb) {
@@ -560,6 +560,6 @@ void launcher_draw(uint32_t *fb) {
     const char *hint = g_focus_panel ? "Cima/baixo: opção    Esquerda/direita: mudar    Esc: voltar ao menu"
                                      : "Cima/baixo: menu    Enter: escolher    Esc: sair    Mouse também funciona";
     text(FONT_SMALL, 40, 508, hint, C_DIM, 230);
-    const char *ver = "v0.2 · em desenvolvimento";
+    const char *ver = "v0.1 · versão de testes";
     text(FONT_SMALL, W - 40 - text_w(FONT_SMALL, ver), 508, ver, C_DIM, 180);
 }

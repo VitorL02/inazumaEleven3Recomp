@@ -18,6 +18,7 @@ static uint8_t g_io[0x2000];
 const uint8_t *rt_io(void) { return g_io; }
 static uint32_t g_vcount;
 uint64_t g_frame;
+int g_log_frames; /* imprime "[recomp] quadro N" a cada segundo (sem janela ou RECOMP_QUADROS=1) */
 int g_trace;
 static int g_in_irq;
 
@@ -90,7 +91,7 @@ static void card_start(Cpu *c, uint32_t ctrl) {
     g_card_pos = 0;
     memset(g_card_buf, 0xFF, g_card_len);
     uint8_t cmd = g_card_cmd[0];
-    if (getenv("RECOMP_CARDLOG")) fprintf(stderr, "[card] cmd %02x %02x%02x%02x%02x len %x\n", cmd, g_card_cmd[1], g_card_cmd[2], g_card_cmd[3], g_card_cmd[4], g_card_len);
+    if (getenv("RECOMP_CARDLOG")) fprintf(stderr, "[card] q%llu cmd %02x %02x%02x%02x%02x len %x\n", (unsigned long long)g_frame, cmd, g_card_cmd[1], g_card_cmd[2], g_card_cmd[3], g_card_cmd[4], g_card_len);
     if (cmd == 0xB7) {
         uint32_t a = (g_card_cmd[1] << 24) | (g_card_cmd[2] << 16) | (g_card_cmd[3] << 8) | g_card_cmd[4];
         if (a < 0x8000) a = 0x8000 + (a & 0x1FF);
@@ -663,7 +664,7 @@ void rt_vblank(Cpu *c) {
     io_set32(0x214, io_get32(0x214) | 1);
     { uint32_t I = c->I; c->I = 0; rt_check_irq(c); c->I = I; } /* halt acorda com IRQ mesmo com I=1 */
     video_present();
-    if (g_frame % 60 == 0) fprintf(stderr, "[recomp] quadro %llu\n", (unsigned long long)g_frame);
+    if (g_log_frames && g_frame % 60 == 0) fprintf(stderr, "[recomp] quadro %llu\n", (unsigned long long)g_frame);
 }
 /* OS_WaitIrq(BOOL clear, u32 mask) */
 void hle_OS_WaitIrq(Cpu *c) {

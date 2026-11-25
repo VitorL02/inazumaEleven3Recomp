@@ -89,6 +89,7 @@ static void layout_size(int *w, int *h) {
 #ifdef HAVE_SDL2
 #include <SDL2/SDL.h>
 static SDL_Window *g_win; static SDL_Renderer *g_ren; static SDL_Texture *g_tex;
+static int g_turbo; /* Espaço segurado: roda sem esperar o relógio (pulo de quadros) */
 static void audio_cb(void *ud, Uint8 *stream, int len) {
     (void)ud;
     int16_t *out = (int16_t *)stream; int frames = len / 4;
@@ -153,6 +154,7 @@ static void sdl_events(void) {
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) exit(0);
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F11) { g_cfg.fullscreen ^= 1; SDL_SetWindowFullscreen(g_win, g_cfg.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0); break; }
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_TAB) { g_swap ^= 1; break; }
+            if (e.key.keysym.sym == SDLK_SPACE) { g_turbo = e.type == SDL_KEYDOWN; snd_set_turbo(g_turbo); break; }
             sdl_key(e.key.keysym.sym, e.type == SDL_KEYDOWN); break;
         case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP:
             if (e.button.button == SDL_BUTTON_LEFT) mouse_down = e.type == SDL_MOUSEBUTTONDOWN;
@@ -171,6 +173,7 @@ static void sdl_events(void) {
 static int g_headless;
 static const char *g_capture_path; /* --capturar-titulo: grava a tela de cima no quadro CAPTURE_FRAME e sai */
 #define CAPTURE_FRAME 5400
+#define TURBO_SKIP 4
 static char g_self_exe[1024];
 void video_present(void) {
     if (g_capture_path) {
@@ -190,6 +193,14 @@ void video_present(void) {
     int every = getenv("RECOMP_DUMP_EVERY") ? atoi(getenv("RECOMP_DUMP_EVERY")) : 60;
     int want_dump = dump && every > 0 && g_frame % every == 0;
     int want_win = !g_headless;
+#ifdef HAVE_SDL2
+    if (want_win && g_tex) {
+        sdl_events();
+        /* acelerado: sem espera e só 1 de cada TURBO_SKIP quadros vai para a tela */
+        if (g_turbo) { if (g_frame % TURBO_SKIP && !want_dump) return; }
+        else frame_pace();
+    } else
+#endif
     if (want_win) frame_pace();
     if (!want_dump && !want_win) return;
     video_render(rt_io(), g_fb, g_fb + 256 * 192);
@@ -210,8 +221,7 @@ void video_present(void) {
 #ifdef HAVE_SDL2
     if (want_win) {
         int w, h; layout_size(&w, &h);
-        if (!g_tex) sdl_window(w, h, g_cfg.scale);
-        sdl_events();
+        if (!g_tex) { sdl_window(w, h, g_cfg.scale); sdl_events(); }
         if (g_cfg.layout == 1) { /* lado a lado: a textura tem 512x192 */
             static uint32_t side[512 * 192];
             for (int y = 0; y < 192; y++) { memcpy(side + y * 512, g_fb + y * 256, 1024); memcpy(side + y * 512 + 256, g_fb + (192 + y) * 256, 1024); }
@@ -334,6 +344,8 @@ int main(int argc, char **argv) {
     g_headless = 1;
 #endif
     if (getenv("RECOMP_HEADLESS")) g_headless = 1;
+    { extern int g_log_frames; g_log_frames = g_headless || getenv("RECOMP_QUADROS"); }
+    if (!g_capture_path) plat_log_to_file(g_self_exe, "ie3recomp.log"); /* Windows sem console: mensagens vão para um arquivo ao lado do .exe */
     if (rom_arg) snprintf(g_cfg.rom, sizeof g_cfg.rom, "%s", rom_arg);
     if (!g_capture_path && (getenv("RECOMP_LAUNCHER_DUMP") || (!skip_launcher && !g_headless))) {
         if (run_launcher() != LAUNCH_PLAY) return 0;

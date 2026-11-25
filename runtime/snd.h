@@ -9,3 +9,5 @@ int snd_vblank(Cpu *c, uint32_t *alarm_msgs, int max);
 /* lê amostras estéreo já mixadas (para a saída de áudio); devolve quantas havia */
 int snd_read(int16_t *out, int frames);
 #define SND_RATE 32768
+/* modo acelerado (tecla de pular quadros): descarta o áudio que não cabe em ~60 ms de fila */
+void snd_set_turbo(int on);

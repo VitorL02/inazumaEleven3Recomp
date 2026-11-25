@@ -28,6 +28,12 @@ ifeq ($(WIN),1)
 # Windows (MinGW): SDL2 do pacote "devel mingw"; -mwindows não abre console (WIN_CONSOLE=1 abre, para ver o log)
 override CFLAGS += -DHAVE_SDL2 -I$(SDL_DIR)/include -I$(SDL_DIR)/include/SDL2 -Dmain=SDL_main
 LDLIBS += -L$(SDL_DIR)/lib -lmingw32 -lSDL2main -lSDL2 $(if $(WIN_CONSOLE),-mconsole,-mwindows) -static-libgcc -Wl,--stack,67108864
+# ícone, manifesto e dados de versão do .exe
+WINDRES ?= $(patsubst %gcc,%windres,$(CC))
+OBJS += $(BUILD)/obj/ie3_res.o
+$(BUILD)/obj/ie3_res.o: win/ie3.rc win/ie3.ico win/ie3.manifest
+	@mkdir -p $(BUILD)/obj
+	$(WINDRES) -c 65001 -I win -i win/ie3.rc -o $@
 else ifeq ($(SDL),1)
 # Com SDL2 instalado, abre janela: make SDL=1
 CFLAGS += -DHAVE_SDL2 $(shell sdl2-config --cflags)

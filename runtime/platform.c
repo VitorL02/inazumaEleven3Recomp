@@ -41,6 +41,16 @@ int plat_proc_done(intptr_t h) {
     return 0;
 }
 void plat_proc_kill(intptr_t h) { TerminateProcess((HANDLE)h, 1); CloseHandle((HANDLE)h); }
+void plat_log_to_file(const char *self_exe, const char *name) {
+    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
+    if (h && h != INVALID_HANDLE_VALUE) return; /* tem console ou saída redirecionada: deixa como está */
+    char path[1200]; snprintf(path, sizeof path, "%s", self_exe);
+    char *s = strrchr(path, '\\'), *s2 = strrchr(path, '/');
+    if (s2 > s) s = s2;
+    if (s) s[1] = 0; else path[0] = 0;
+    strncat(path, name, sizeof path - strlen(path) - 1);
+    if (freopen(path, "w", stderr)) setvbuf(stderr, NULL, _IONBF, 0);
+}
 #else
 #define _POSIX_C_SOURCE 200809L
 #include <fcntl.h>
@@ -93,4 +103,5 @@ intptr_t plat_spawn_quiet(const char *exe, const char *const argv[]) {
 }
 int plat_proc_done(intptr_t h) { int st; return waitpid((pid_t)h, &st, WNOHANG) == (pid_t)h; }
 void plat_proc_kill(intptr_t h) { int st; kill((pid_t)h, SIGKILL); waitpid((pid_t)h, &st, 0); }
+void plat_log_to_file(const char *self_exe, const char *name) { (void)self_exe; (void)name; }
 #endif

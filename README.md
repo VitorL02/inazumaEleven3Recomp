@@ -5,43 +5,76 @@ Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre**
 > Este repositório **não contém** a ROM nem arquivos do jogo. Você precisa da sua própria cópia.
 > ROM de referência: `BOEJ`, tradução BR T1.3, SHA-1 `a70e9a336f6ea8ff78003938dcd024533f034a68`.
 
-## Status
+<p align="center">
+  <img src="docs/img/launcher_jogar.png" width="49%" alt="Launcher: aba Jogar">
+  <img src="docs/img/launcher_graficos.png" width="49%" alt="Launcher: aba Gráficos">
+  <img src="docs/img/launcher_controles.png" width="49%" alt="Launcher: aba Controles">
+  <img src="docs/img/launcher_sobre.png" width="49%" alt="Launcher: aba Sobre">
+</p>
 
-Fase 2 em andamento: o jogo inteiro já é traduzido para C, compila e **roda no PC até o loop principal**, com threads, leitura de arquivos e save. O jogo já passa pelos créditos da tradução, pela **tela título** ("Ogros ao Ataque!"), pelo teclado do nome do save e entra no **começo da história**: conversas, mapa e o cenário 3D com o personagem andando. O 3D é um renderizador por software do hardware do DS (`runtime/gx.c`). Os vídeos Mobiclip ainda são pulados. Tem launcher com escolha da ROM e configurações (FPS, escala, tela cheia, layout). O som funciona: o lado do ARM7 (canais PCM/ADPCM/PSG, alarmes e mixagem) é HLE em `runtime/snd.c`, com saída pelo SDL.
-Veja [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
+## Status: versão de testes (v0.1)
 
-## Como jogar
+**Quanto já foi recompilado**
+
+| O quê | Situação |
+|---|---|
+| Código ARM do jogo (ARM9 + 133 overlays) | **18.655 funções, cerca de 957 mil instruções traduzidas para C** |
+| Instruções que o tradutor ainda não cobre | 138 (0,01%; a maioria é dado confundido com código) |
+| Funções Thumb | 142, rodam num interpretador pequeno |
+| Processador ARM7 (som, toque, cartão) | substituído por HLE no runtime |
+| Vídeos Mobiclip (decodificador escrito à mão em assembly) | ainda não: os vídeos são pulados |
+
+Ou seja, praticamente todo o código do jogo já vira C. O que falta está no **runtime** (a parte que imita o hardware do DS) e em casos especiais.
+
+**Até onde o jogo vai**
+
+- Funciona: créditos da tradução, tela título, novo jogo, teclado do nome do save, as primeiras cenas da história (Futuro, Rua) com conversas, vozes, música, mapa e o cenário 3D com o personagem andando.
+- Problema conhecido: o jogo pode ficar numa **tela preta** na cena "voltando pro nosso tempo" (investigação em andamento, provavelmente ligada aos vídeos pulados).
+- Ainda não tem: vídeos, sombras e contorno no 3D. Há um glitch de espaçamento em alguns textos.
+
+Detalhes técnicos em [docs/fase1.md](docs/fase1.md) (análise) e [docs/fase2.md](docs/fase2.md) (recompilador e runtime).
+
+## Como compilar e jogar
+
+O `ie3.exe` (ou `ie3` no Linux) contém o código do jogo traduzido para C, então ele é **gerado na sua máquina, a partir da sua ROM**. Por isso as releases trazem só o código e estas instruções.
+
+### Linux
 
 ```bash
-make gen && make -j4 SDL=1     # precisa de SDL2 (Linux: libsdl2-dev)
-./build/ie3                    # abre o launcher
-./build/ie3 rom.nds --jogar    # ou direto, sem o launcher
+sudo apt install build-essential python3-pip libsdl2-dev
+pip install -r requirements.txt
+python3 -I tools/extract.py rom.nds extracted     # extrai o código da SUA ROM
+make gen && make -j4 SDL=1
+./build/ie3                                       # abre o launcher
+./build/ie3 rom.nds --jogar                       # ou direto, sem o launcher
 ```
 
 ### Windows
-
-O código do jogo traduzido para C sai da sua ROM, então o `ie3.exe` é gerado na sua máquina (nada do jogo fica no repositório).
-Dá para compilar de duas formas:
 
 - **No Windows, com MSYS2** (terminal "MSYS2 MINGW64"):
   ```bash
   pacman -S --needed make python python-pip mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2
   pip install capstone ndspy
   python -I tools/extract.py rom.nds extracted
-  make gen && make -j4 WIN=1 SDL_DIR=/mingw64 EXE=.exe BUILD=build-win
+  make gen && make -j4 WIN=1 CC=gcc SDL_DIR=/mingw64 EXE=.exe BUILD=build-win
   ```
-- **No Linux, para Windows** (MinGW + o pacote `SDL2-devel-<versão>-mingw.tar.gz` do SDL2):
+- **No Linux, gerando para Windows** (MinGW + o pacote `SDL2-devel-<versão>-mingw.tar.gz` do SDL2):
   ```bash
   sudo apt install mingw-w64
+  python3 -I tools/extract.py rom.nds extracted
   make gen && make windows -j4 SDL_DIR=<pasta do SDL2>/x86_64-w64-mingw32
   ```
 
-O resultado fica em `build-win/` (`ie3.exe` e `SDL2.dll`). No Windows as threads do jogo usam Fibers do Win32 e a ROM é mapeada com `CreateFileMapping`
-(ver `runtime/platform.c` e `runtime/hostfiber.c`). `WIN_CONSOLE=1` abre um console com o log.
+O resultado fica em `build-win/` (`ie3.exe` e `SDL2.dll`). O `.exe` abre só a janela do jogo, sem console; as mensagens vão para `ie3recomp.log`, ao lado do `.exe`. Para ver o log ao vivo, compile com `WIN_CONSOLE=1`.
+O `.exe` leva ícone, dados de versão (Propriedades > Detalhes) e manifesto (`win/`).
+
+**Aviso do SmartScreen:** o SmartScreen só avisa em arquivos **baixados da internet** e sem assinatura digital. Um `.exe` que você mesmo compilou não tem essa marca e abre sem aviso. Se você copiar o `.exe` de outra pessoa, o Windows vai avisar, e o certo é não fazer isso (veja a nota legal abaixo). A única forma de tirar o aviso de um arquivo baixado é assinar com um certificado de código, o que não se aplica aqui porque o projeto não distribui executáveis.
+
+### Launcher
 
 O launcher segue o estilo dos launchers de recomp: menu lateral (Jogar, Gráficos, Controles, Sobre) e funciona com mouse ou teclado.
 Na primeira vez ele pede a ROM: arraste o arquivo `.nds` para a janela (ou passe o caminho na linha de comando).
-Ele confere se é a versão certa pelo SHA-1 e mostra a tela título do jogo, **gerada da sua ROM**: o launcher roda o próprio recomp sem janela até a tela título (`ie3 --capturar-titulo`) e guarda a imagem em `ie3_titulo_<sha>.ppm` ao lado do `.ini`. Nenhuma arte do jogo fica no repositório.
+Ele confere se é a versão certa pelo SHA-1 e mostra a tela título do jogo, **gerada da sua ROM**: o launcher roda o próprio recomp sem janela até a tela título (`ie3 --capturar-titulo`) e guarda a imagem em `ie3_titulo_<sha>.ppm` ao lado do `.ini`. Nenhuma arte do jogo fica no repositório (as imagens acima são do launcher sem ROM).
 As opções ficam em `ie3recomp.ini`:
 
 | Opção | Chave no .ini | Valores |
@@ -54,12 +87,31 @@ As opções ficam em `ie3recomp.ini`:
 | Suavizar imagem | `suavizar` | 0 (pixels nítidos) ou 1 |
 | V-Sync | `vsync` | 0 ou 1 |
 
-Controles: setas, X = A, Z = B, S = X, A = Y, Q = L, W = R, Enter = START, Backspace = SELECT, mouse na tela de baixo = toque, Esc = sair.
+### Controles
+
+| DS | Teclado |
+|---|---|
+| Direcional | setas |
+| A / B / X / Y | X / Z / S / A |
+| L / R | Q / W |
+| START / SELECT | Enter / Backspace |
+| Toque | mouse na tela de baixo |
+
+Extras: **Espaço (segurar) acelera o jogo** (pula quadros, até uns 4x), Tab troca a tela no modo de uma tela só, F11 tela cheia, Esc sai.
 Opções de linha de comando: `--fps`, `--escala`, `--tela-cheia`, `--config <arq>`, `--sem-janela` (testes); veja `./build/ie3 --help`.
 
 O executável só lê a ROM que você fornece: o ARM9 vai para a memória comprimido, como no cartão, e o próprio código recompilado do jogo o descomprime; os overlays são lidos e descomprimidos direto da ROM.
 
-## Como usar as ferramentas de análise
+## Nota legal
+
+- Este é um projeto de fãs, sem fins lucrativos e sem ligação com a LEVEL-5 ou a Nintendo. Inazuma Eleven é marca da LEVEL-5.
+- O repositório e as releases trazem **só ferramentas e código próprio** (recompilador, runtime, launcher). Nenhum arquivo do jogo, nenhum código do jogo traduzido e nenhum executável com o jogo dentro.
+- Para jogar você precisa de uma cópia do jogo que seja sua, extraída do seu próprio cartucho. Não peça nem compartilhe ROMs ou executáveis gerados (o `.exe` gerado contém o código do jogo).
+- O projeto não quebra proteção de cópia: lê a ROM do jeito que o próprio console leria.
+- A tradução BR é do grupo The Ogre Traduction / CyberLife; os créditos dela aparecem no jogo.
+- Isto é um resumo de boas práticas de projetos de recompilação, não orientação jurídica.
+
+## Ferramentas de análise
 
 ```bash
 pip install -r requirements.txt
@@ -74,11 +126,11 @@ tools/iterate.sh rom.nds                                       # roda e corrige 
 
 ## Plano
 
-| Fase | Objetivo | Marco |
+| Fase | Objetivo | Situação |
 |---|---|---|
 | 0 | Extrair e mapear a ROM | feito |
 | 1 | Análise: funções, loop principal, overlays, IRQ, IPC | feito |
-| 2 | Recompilador ARM/Thumb → C + runtime mínimo (2D) | telas de logo (em andamento: já chega ao loop principal) |
-| 3 | Todos os overlays, arquivos e saves | menu principal |
-| 4 | GPU 3D, som (HLE do ARM7), vídeos Mobiclip, entrada | partida jogável |
-| 5 | Polimento (resolução, controles) | |
+| 2 | Recompilador ARM/Thumb → C + runtime 2D | feito |
+| 3 | Todos os overlays, arquivos e saves | feito (save ainda em teste) |
+| 4 | GPU 3D, som (HLE do ARM7), vídeos Mobiclip, entrada | 3D, som e entrada feitos; faltam vídeos |
+| 5 | Polimento: resolução maior, controles configuráveis, aceleração | começando (tecla de acelerar) |
