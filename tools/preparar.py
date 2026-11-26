@@ -198,6 +198,12 @@ def compilar(o, trab):
                     "-IMPLIB:" + os.path.join(obj, "ie3.lib"), *objs,
                     os.path.join(sdl, "lib", "libSDL2main.a"), os.path.join(sdl, "lib", "libSDL2.dll.a"),
                     "-SUBSYSTEM:windows,6.0", "-ALTERNATENAME:__image_base__=__ImageBase", *libs]
+            # o Windows limita a linha de comando a ~32 mil caracteres e são 300+ arquivos: vai tudo num
+            # arquivo de resposta (@arquivo), que o lld lê
+            rsp = os.path.join(obj, "ligacao.rsp")
+            with open(rsp, "w", encoding="utf-8") as f:
+                f.write("\n".join('"' + a.replace("\\", "/") + '"' for a in link[2:]) + "\n")
+            link = link[:2] + ["@" + rsp]
     else:
         exe = os.path.join(o["saida"], "ie3")
         libs = subprocess.run(["sdl2-config", "--libs"], capture_output=True, text=True).stdout.split()
