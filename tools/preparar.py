@@ -90,7 +90,7 @@ def conferir_rom(path):
 
 def rodar_py(script, *a, pct=None, msg="", estimativa=30):
     """Roda outro script do projeto. Sem saída de progresso dele, a barra avança pelo tempo estimado."""
-    p = subprocess.Popen([sys.executable, "-X", "utf8", "-I", script, *a], cwd=FONTE)
+    p = subprocess.Popen([sys.executable, "-X", "utf8", "-I", script, *a], cwd=FONTE, stdin=subprocess.DEVNULL)
     t0 = time.time()
     while p.poll() is None:
         time.sleep(0.5)
@@ -125,12 +125,23 @@ def compilar(o, trab):
         src, dst = job
         if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
             return None  # já compilado (dá para continuar de onde parou)
-        r = subprocess.run(cc + CFLAGS + inc + ["-c", src, "-o", dst + ".tmp"], capture_output=True, text=True)
+        r = subprocess.run(cc + CFLAGS + inc + ["-c", src, "-o", dst + ".tmp"], capture_output=True, text=True, stdin=subprocess.DEVNULL)
         if r.returncode:
             return f"{os.path.basename(src)}:\n{r.stderr[-3000:]}"
         os.replace(dst + ".tmp", dst)
         return None
 
+    # Na primeira ligação o zig monta a biblioteca C do Windows (MinGW-w64) e o compiler_rt a partir do
+    # código-fonte, o que leva minutos. Um programa vazio ligado em paralelo já deixa isso no cache
+    # enquanto os arquivos do jogo compilam; a ligação final fica rápida.
+    aquecer = None
+    if win:
+        vazio = os.path.join(obj, "aquecer.c")
+        with open(vazio, "w") as f:
+            f.write("int main(void) { return 0; }\n")
+        aquecer = subprocess.Popen(cc + CFLAGS + [vazio, "-o", os.path.join(obj, "aquecer.exe"), "-lmingw32", "-lcomdlg32",
+                                                  "-Wl,--subsystem,windows", "-s"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
     t0, feitos, erros = time.time(), 0, []
     with concurrent.futures.ThreadPoolExecutor(o["tarefas"]) as ex:
         for e in ex.map(um, jobs):
@@ -146,12 +157,23 @@ def compilar(o, trab):
         falha(f"{len(erros)} arquivo(s) não compilaram")
 
     objs = [d for _, d in jobs]
-    progresso(97, "Montando o executável")
+    t1 = time.time()
+    if aquecer:
+        while aquecer.poll() is None:
+            progresso(97, f"Preparando a biblioteca do Windows (só na primeira vez; {int(time.time() - t1)} s)")
+            time.sleep(1)
+    print(f"  biblioteca do Windows pronta ({int(time.time() - t1)} s de espera)", flush=True)
+    progresso(98, "Montando o executável")
     os.makedirs(o["saida"], exist_ok=True)
     if win:
         res = os.path.join(obj, "ie3.res")  # ícone, manifesto e dados de versão; o lld liga o .res direto
-        r = subprocess.run([zig, "rc", "/c", "65001", "ie3.rc", res], capture_output=True, text=True, cwd=os.path.join(FONTE, "win"))
-        if r.returncode == 0 and os.path.exists(res):
+        progresso(97, "Preparando o ícone do executável")
+        try:  # o ícone é opcional: se o zig rc travar ou falhar, segue sem ele
+            r = subprocess.run([zig, "rc", "/c", "65001", "ie3.rc", res], capture_output=True, text=True,
+                               cwd=os.path.join(FONTE, "win"), stdin=subprocess.DEVNULL, timeout=120)
+        except subprocess.TimeoutExpired:
+            r = None
+        if r and r.returncode == 0 and os.path.exists(res):
             objs.append(res)
         else:
             print("aviso: sem ícone no .exe (o recurso win/ie3.rc não compilou)")
@@ -165,9 +187,16 @@ def compilar(o, trab):
         exe = os.path.join(o["saida"], "ie3")
         libs = subprocess.run(["sdl2-config", "--libs"], capture_output=True, text=True).stdout.split()
         link = cc + objs + ["-o", exe] + libs + ["-lm"]
-    r = subprocess.run(link, capture_output=True, text=True)
+    t1 = time.time()
+    saida_link = os.path.join(obj, "ligacao.log")
+    with open(saida_link, "w", encoding="utf-8", errors="replace") as lf:
+        r = subprocess.Popen(link, stdout=lf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        while r.poll() is None:
+            progresso(98, f"Montando o executável ({int(time.time() - t1)} s)")
+            time.sleep(1)
+    print(f"  ligação: {int(time.time() - t1)} s", flush=True)
     if r.returncode:
-        print(r.stderr[-4000:])
+        print(open(saida_link, encoding="utf-8", errors="replace").read()[-4000:])
         falha("a ligação do executável falhou")
     if win:
         pdb = os.path.splitext(exe)[0] + ".pdb"
