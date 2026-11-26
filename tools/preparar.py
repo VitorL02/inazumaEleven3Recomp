@@ -5,11 +5,14 @@
 e o código do projeto; o código do jogo é gerado aqui, na máquina de quem tem a ROM.
 
 Uso: python -X utf8 -I tools/preparar.py <rom.nds> [opções]
-  --saida <pasta>     onde fica o ie3.exe (padrão: a pasta da release, ao lado de "ferramentas")
+  --saida <pasta>     onde fica o ie3.exe (padrão: a pasta "jogo" da release, ao lado de "ferramentas")
   --zig <zig>         compilador (padrão: ferramentas/zig/zig.exe)
   --sdl <pasta>       SDL2 "devel mingw" (padrão: ferramentas/sdl2)
   --alvo windows|linux  (padrão: o sistema atual; linux usa o SDL2 do sistema)
   --tarefas N         compilações em paralelo (padrão: núcleos do processador)
+  --progresso <arq>   escreve "<porcentagem>\t<mensagem>" neste arquivo (o launcher mostra a barra);
+                      -1 na porcentagem quer dizer erro
+  --versao <v>        grava <saida>/versao.txt no fim (o launcher confere se o jogo é desta versão)
 """
 import concurrent.futures, glob, hashlib, os, shutil, subprocess, sys, time
 
@@ -20,15 +23,35 @@ CFLAGS = ["-O1", "-w", "-fno-strict-aliasing", "-fwrapv",
           "-Wno-error=implicit-function-declaration", "-Wno-error=int-conversion",
           "-Wno-error=incompatible-pointer-types", "-Wno-error=implicit-int"]
 RT = ["runtime", "thumb", "arm_interp", "threads", "video", "gx", "snd", "rom", "platform",
-      "hostfiber", "config", "launcher", "main"]
+      "hostfiber", "config", "launcher", "launcher_sdl", "main"]
 
 
-def passo(msg):
+PROGRESSO = None
+
+
+def progresso(pct, msg):
+    if not PROGRESSO:
+        return
+    tmp = PROGRESSO + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(f"{pct}\t{msg}\n")
+    for _ in range(20):  # o launcher pode estar lendo o arquivo (no Windows isso bloqueia a troca)
+        try:
+            os.replace(tmp, PROGRESSO); return
+        except PermissionError:
+            time.sleep(0.05)
+
+
+def passo(msg, pct=None):
     print(f"\n== {msg}", flush=True)
+    if pct is not None:
+        progresso(pct, msg.split(" ", 1)[1] if msg[:1].isdigit() else msg)
 
 
 def falha(msg):
     print(f"\nERRO: {msg}", flush=True)
+    m = msg.splitlines()[0]
+    progresso(-1, f"Erro: {m[:1].upper()}{m[1:]}. Detalhes em jogo/preparo.log")
     sys.exit(1)
 
 
@@ -37,7 +60,8 @@ def args():
     if not a or a[0] in ("-h", "--help"):
         print(__doc__); sys.exit(0 if a else 1)
     o = {"rom": a[0], "saida": None, "zig": None, "sdl": None,
-         "alvo": "windows" if os.name == "nt" else "linux", "tarefas": os.cpu_count() or 4}
+         "alvo": "windows" if os.name == "nt" else "linux", "tarefas": os.cpu_count() or 4,
+         "progresso": None, "versao": None}
     i = 1
     while i < len(a):
         k = a[i].lstrip("-")
@@ -48,7 +72,7 @@ def args():
     # na release: <release>/ferramentas/fonte (este código), <release>/ferramentas/{zig,sdl2,python}
     na_release = os.path.basename(FONTE) == "fonte"
     ferr = os.path.dirname(FONTE) if na_release else os.path.join(FONTE, "ferramentas")
-    o["saida"] = o["saida"] or (os.path.dirname(ferr) if na_release else os.path.join(FONTE, "build-local"))
+    o["saida"] = o["saida"] or (os.path.join(os.path.dirname(ferr), "jogo") if na_release else os.path.join(FONTE, "build-local"))
     o["zig"] = o["zig"] or os.path.join(ferr, "zig", "zig.exe" if os.name == "nt" else "zig")
     o["sdl"] = o["sdl"] or os.path.join(ferr, "sdl2")
     return o
@@ -59,13 +83,21 @@ def conferir_rom(path):
         falha(f"não achei a ROM em {path}")
     h = hashlib.sha1(open(path, "rb").read()).hexdigest()
     if h != ROM_SHA1:
-        falha(f"esta ROM tem SHA-1 {h}.\nO projeto precisa de Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre (BOEJ) "
+        falha(f"esta ROM é de outra versão (SHA-1 {h}).\nO projeto precisa de Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre (BOEJ) "
               f"com a tradução BR T1.3 (SHA-1 {ROM_SHA1}).")
     print("ROM conferida (BOEJ, tradução BR T1.3).")
 
 
-def rodar_py(script, *a):
-    r = subprocess.run([sys.executable, "-X", "utf8", "-I", script, *a], cwd=FONTE)
+def rodar_py(script, *a, pct=None, msg="", estimativa=30):
+    """Roda outro script do projeto. Sem saída de progresso dele, a barra avança pelo tempo estimado."""
+    p = subprocess.Popen([sys.executable, "-X", "utf8", "-I", script, *a], cwd=FONTE)
+    t0 = time.time()
+    while p.poll() is None:
+        time.sleep(0.5)
+        if pct:
+            f = min(0.95, (time.time() - t0) / estimativa)
+            progresso(int(pct[0] + (pct[1] - pct[0]) * f), msg)
+    r = p
     if r.returncode:
         falha(f"{os.path.basename(script)} falhou (código {r.returncode})")
 
@@ -107,12 +139,14 @@ def compilar(o, trab):
                 erros.append(e)
             if feitos % 10 == 0 or feitos == len(jobs):
                 print(f"\r  {feitos}/{len(jobs)} arquivos ({int(time.time() - t0)} s)", end="", flush=True)
+                progresso(30 + 67 * feitos // len(jobs), f"Compilando o jogo ({feitos} de {len(jobs)} arquivos)")
     print()
     if erros:
         print(erros[0])
         falha(f"{len(erros)} arquivo(s) não compilaram")
 
     objs = [d for _, d in jobs]
+    progresso(97, "Montando o executável")
     os.makedirs(o["saida"], exist_ok=True)
     if win:
         res = os.path.join(obj, "ie3.res")  # ícone, manifesto e dados de versão; o lld liga o .res direto
@@ -125,6 +159,7 @@ def compilar(o, trab):
         sdl = o["sdl"]
         link = cc + objs + ["-o", exe, "-L" + os.path.join(sdl, "lib"), "-lmingw32", "-lSDL2main",
                             os.path.join(sdl, "lib", "libSDL2.dll.a"),  # SDL2.dll (não a libSDL2.a estática)
+                            "-lcomdlg32",  # janela de escolher a ROM do launcher
                             "-Wl,--subsystem,windows", "-Wl,--stack,67108864", "-s"]
     else:
         exe = os.path.join(o["saida"], "ie3")
@@ -146,25 +181,33 @@ def compilar(o, trab):
 
 
 def main():
+    global PROGRESSO
     o = args()
+    PROGRESSO = o["progresso"]
     rom = os.path.abspath(o["rom"])
     trab = os.path.join(o["saida"], "preparo")  # arquivos intermediários (podem ser apagados depois)
     print("Inazuma Eleven 3 Recomp: preparando o jogo a partir da sua ROM.")
-    passo("1/4 Conferindo a ROM")
+    passo("1/4 Conferindo a ROM", 1)
     conferir_rom(rom)
-    passo("2/4 Extraindo o código da ROM")
+    passo("2/4 Extraindo o código da ROM", 3)
     ext = os.path.join(trab, "extracted")
-    rodar_py(os.path.join(FONTE, "tools", "extract.py"), rom, ext)
-    passo("3/4 Traduzindo o código do jogo para C")
-    rodar_py(os.path.join(FONTE, "recomp", "armrecomp.py"), ext, os.path.join(FONTE, "analysis", "functions_list.txt"), os.path.join(trab, "gen"))
+    rodar_py(os.path.join(FONTE, "tools", "extract.py"), rom, ext, pct=(3, 8), msg="Extraindo o código da ROM", estimativa=15)
+    passo("3/4 Traduzindo o código do jogo para C", 8)
+    rodar_py(os.path.join(FONTE, "recomp", "armrecomp.py"), ext, os.path.join(FONTE, "analysis", "functions_list.txt"), os.path.join(trab, "gen"),
+             pct=(8, 30), msg="Traduzindo o código do jogo para C", estimativa=50)
     # o cache do zig fica junto dos intermediários: apagar "preparo" limpa tudo
     os.environ.setdefault("ZIG_GLOBAL_CACHE_DIR", os.path.join(trab, "zig-cache"))
     os.environ.setdefault("ZIG_LOCAL_CACHE_DIR", os.path.join(trab, "zig-cache"))
     passo(f"4/4 Compilando ({o['tarefas']} de cada vez; leva alguns minutos)")
+    progresso(30, "Compilando o jogo")
     exe = compilar(o, trab)
-    # deixa a ROM já escolhida para o launcher
+    if o["versao"]:
+        with open(os.path.join(o["saida"], "versao.txt"), "w", encoding="utf-8") as f:
+            f.write(o["versao"] + "\n")
+    progresso(100, "Pronto")
+    # rodando sozinho (sem o launcher): deixa a ROM já escolhida no .ini
     ini = os.path.join(o["saida"], "ie3recomp.ini")
-    if not os.path.exists(ini):
+    if not PROGRESSO and not os.path.exists(ini):
         with open(ini, "w", encoding="utf-8") as f:
             f.write(f"rom={rom}\n")
     print(f"\nPronto: {exe}\nOs arquivos em {trab} podem ser apagados (contêm o código do jogo gerado da sua ROM).")

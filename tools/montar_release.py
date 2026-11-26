@@ -4,11 +4,13 @@
 Uso: python3 -I tools/montar_release.py <versão> <saída.zip> --zig <ziglang win_amd64 .whl>
        --python <pasta com o Python do conda-forge para win-64 já descompactado>
        --pylibs <ndspy .whl> <crcmod .tar.gz> --sdl <pasta x86_64-w64-mingw32 do SDL2 devel mingw>
+       --zig-host <zig que roda nesta máquina, para compilar o launcher>
 
-O usuário descompacta, arrasta a ROM em "Preparar jogo.bat" e o ie3.exe é gerado no PC dele
-(tools/preparar.py). Assim a release não leva código do jogo, nem traduzido.
+O usuário descompacta e abre "Inazuma Eleven 3.exe" (o launcher, que só tem código do projeto).
+Na primeira vez o launcher roda tools/preparar.py sem janela e gera jogo/ie3.exe a partir da ROM.
+Assim a release não leva código do jogo, nem traduzido.
 """
-import glob, io, os, shutil, sys, tarfile, tempfile, zipfile
+import glob, io, os, shutil, subprocess, sys, tarfile, tempfile, zipfile
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # o que vai do repositório para ferramentas/fonte (só código do projeto)
@@ -19,45 +21,22 @@ PY_FORA = ["Lib/test", "Lib/idlelib", "Lib/tkinter", "Lib/turtledemo", "Lib/ensu
            "Lib/pydoc_data", "Lib/site-packages", "include", "libs", "Tools", "Scripts", "tcl", "etc",
            "Library/include", "Library/lib", "Library/share", "Library/ssl", "conda-meta", "info"]
 
-BAT = r"""@echo off
-chcp 65001 >nul
-setlocal
-cd /d "%~dp0"
-echo Inazuma Eleven 3 Recomp - preparar o jogo
-echo.
-set "ROM=%~1"
-if not "%ROM%"=="" goto tem_rom
-echo Arraste o arquivo .nds da sua ROM para esta janela e aperte Enter:
-set /p "ROM="
-:tem_rom
-set "ROM=%ROM:"=%"
-"%~dp0ferramentas\python\python.exe" -X utf8 -I "%~dp0ferramentas\fonte\tools\preparar.py" "%ROM%"
-if errorlevel 1 goto erro
-echo.
-echo Pronto! Abra o ie3.exe para jogar.
-pause
-exit /b 0
-:erro
-echo.
-echo Não deu certo. Veja a mensagem acima (e o README em ferramentas\fonte).
-pause
-exit /b 1
-"""
-
 LEIA = """Inazuma Eleven 3 Recomp {versao} (versão de testes)
 
-Esta pasta NÃO tem o jogo. Ela traz as ferramentas que geram o jogo a partir da SUA ROM.
+Esta pasta NÃO tem o jogo. Ela traz o launcher e as ferramentas que geram o jogo a partir da SUA ROM.
 
-1. Arraste a sua ROM (.nds) para cima de "Preparar jogo.bat"
-   (ou abra o .bat e arraste a ROM para a janela).
+1. Abra "Inazuma Eleven 3.exe".
+2. Arraste a sua ROM (.nds) para a janela, ou clique no quadro para procurar o arquivo.
    A ROM precisa ser Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre (BOEJ) com a tradução BR T1.3.
-2. Espere: ele confere a ROM, extrai o código, traduz para C e compila. Leva alguns minutos
-   (depende do processador). Só precisa fazer isso uma vez.
-3. Abra o ie3.exe.
+3. Na primeira vez o launcher gera o jogo a partir da ROM (confere, extrai, traduz para C e
+   compila). Leva alguns minutos, dependendo do processador; a barra mostra o andamento.
+   Se fechar no meio, ele continua de onde parou na próxima vez.
+4. Clique em JOGAR.
 
-O save (ie3.sav), as opções (ie3recomp.ini) e o log (ie3recomp.log) ficam nesta pasta.
-A pasta "preparo" pode ser apagada depois: ela tem os arquivos intermediários gerados da sua ROM.
-Não compartilhe o ie3.exe gerado nem a pasta "preparo": eles contêm o código do jogo.
+O save (ie3.sav) e as opções (ie3recomp.ini) ficam nesta pasta. O jogo gerado fica em "jogo",
+com o log (jogo/ie3recomp.log) e o log do preparo (jogo/preparo.log).
+A pasta "jogo/preparo" pode ser apagada depois: ela tem os arquivos intermediários gerados da sua ROM.
+Não compartilhe a pasta "jogo": ela contém o código do jogo.
 
 Código e instruções: https://github.com/VitorL02/inazumaEleven3Recomp
 Ferramentas incluídas e licenças: ferramentas/licencas
@@ -159,8 +138,22 @@ def main():
     for cand in glob.glob(os.path.join(os.path.dirname(sdl), "LICENSE*")) + glob.glob(os.path.join(sdl, "share", "licenses", "*", "*")):
         shutil.copy2(cand, os.path.join(lic, "SDL2.txt"))
 
-    with open(os.path.join(top, "Preparar jogo.bat"), "w", encoding="utf-8", newline="\r\n") as f:
-        f.write(BAT)
+    # o launcher (só código do projeto: launcher, opções, conferência da ROM)
+    fonte = os.path.join(fer, "fonte")
+    srcs = [os.path.join(fonte, "runtime", n + ".c") for n in ("launcher", "launcher_sdl", "launcher_main", "config", "platform", "rom")]
+    env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=os.path.join(tmp, "zc"), ZIG_LOCAL_CACHE_DIR=os.path.join(tmp, "zc"))
+    zh = o["zig-host"][0]
+    res = os.path.join(tmp, "launcher.res")
+    subprocess.run([zh, "rc", "/c", "65001", "ie3.rc", res], check=True, cwd=os.path.join(fonte, "win"), env=env)
+    sdlr = os.path.join(fer, "sdl2")
+    exe = os.path.join(top, "Inazuma Eleven 3.exe")
+    subprocess.run([zh, "cc", "-target", "x86_64-windows-gnu", "-O2", "-w", "-DHAVE_SDL2", "-Dmain=SDL_main",
+                    "-I" + os.path.join(fonte, "runtime"), "-I" + os.path.join(sdlr, "include"), "-I" + os.path.join(sdlr, "include", "SDL2"),
+                    *srcs, res, "-o", exe, "-L" + os.path.join(sdlr, "lib"), "-lmingw32", "-lSDL2main",
+                    os.path.join(sdlr, "lib", "libSDL2.dll.a"), "-lcomdlg32", "-Wl,--subsystem,windows", "-s"], check=True, env=env)
+    for pdb in glob.glob(os.path.join(top, "*.pdb")):
+        os.remove(pdb)
+    shutil.copy2(os.path.join(sdlr, "bin", "SDL2.dll"), top)
     with open(os.path.join(top, "LEIA-ME.txt"), "w", encoding="utf-8", newline="\r\n") as f:
         f.write(LEIA.format(versao=versao))
 

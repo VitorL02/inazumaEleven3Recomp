@@ -14,7 +14,7 @@ Recompilação estática de **Inazuma Eleven 3 - Sekai e no Chousen!! The Ogre**
   <img src="docs/img/launcher_sobre.png" width="49%" alt="Launcher: aba Sobre">
 </p>
 
-## Status: versão de testes (v0.2)
+## Status: versão de testes (v0.3)
 
 **Quanto já foi recompilado**
 
@@ -43,13 +43,13 @@ O `ie3.exe` (ou `ie3` no Linux) contém o código do jogo traduzido para C, ent�
 ### Windows, pela release (mais fácil)
 
 1. Baixe o `IE3Recomp-vX.Y-windows.zip` da página de releases e descompacte numa pasta sua.
-2. Arraste a sua ROM (`.nds`) para cima de **`Preparar jogo.bat`**.
-3. Espere alguns minutos: ele confere a ROM (SHA-1), extrai o código, traduz para C e compila o `ie3.exe` na própria pasta. Só precisa fazer uma vez (se parar no meio, rodar de novo continua de onde parou).
-4. Abra o `ie3.exe`.
+2. Abra **`Inazuma Eleven 3.exe`** (o launcher) e arraste a sua ROM (`.nds`) para a janela, ou clique no quadro para procurar o arquivo.
+3. Na primeira vez o launcher gera o jogo a partir da ROM, sem abrir console: confere a ROM (SHA-1), extrai o código, traduz para C e compila `jogo/ie3.exe`. Leva alguns minutos e a barra mostra o andamento. Se fechar no meio, ele continua de onde parou.
+4. Clique em **JOGAR**.
 
-A release traz Python (conda-forge), o compilador [Zig](https://ziglang.org) (clang + lld + MinGW-w64), o SDL2 e o código deste repositório, com as licenças em `ferramentas/licencas`. Nada do jogo. A pasta `preparo` que aparece depois pode ser apagada.
+O launcher só tem código do projeto (tela, opções, conferência da ROM), por isso vem pronto. A release traz também Python (conda-forge), o compilador [Zig](https://ziglang.org) (clang + lld + MinGW-w64), o SDL2 e o código deste repositório, com as licenças em `ferramentas/licencas`. Nada do jogo. A pasta `jogo/preparo` pode ser apagada depois.
 
-Quem mantém a release monta o zip com `tools/montar_release.py` (veja o cabeçalho do script). O mesmo preparo roda fora da release: `python3 -I tools/preparar.py rom.nds --zig <zig> --alvo linux` gera `build-local/ie3`.
+Quem mantém a release monta o zip com `tools/montar_release.py` (veja o cabeçalho do script; `make launcher SDL=1` gera o launcher sozinho no Linux). O mesmo preparo roda fora da release: `python3 -I tools/preparar.py rom.nds --zig <zig> --alvo linux` gera `build-local/ie3`.
 
 ### Linux
 

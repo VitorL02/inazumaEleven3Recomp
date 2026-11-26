@@ -40,8 +40,24 @@ static intptr_t g_art_pid;
 static char g_art_path[1200];
 static time_t g_art_started;
 
+/* launcher separado: o jogo é gerado da ROM (preparo) em <base>/jogo e roda como outro processo */
+#ifdef _WIN32
+#define SEP "\\"
+#define GAME_EXE "ie3.exe"
+#else
+#define SEP "/"
+#define GAME_EXE "ie3"
+#endif
+static int g_ext;
+static char g_base[1024], g_game_dir[1100], g_game_exe[1200], g_prog_path[1200], g_prep_log[1200];
+static int g_game_ready;
+static intptr_t g_prep_pid;
+static int g_prep_pct, g_prep_failed;
+static char g_prep_msg[256];
+static double g_prep_poll;
+
 /* regiões clicáveis, montadas a cada desenho */
-enum { A_TAB, A_PLAY, A_ROW, A_DEC, A_INC };
+enum { A_TAB, A_PLAY, A_ROW, A_DEC, A_INC, A_PICK };
 typedef struct { int x, y, w, h, action, arg; } Hit;
 static Hit g_hits[64];
 static int g_nhits;
@@ -258,20 +274,98 @@ static int load_art(void) {
     int w, h, mx;
     if (fscanf(f, "P6 %d %d %d", &w, &h, &mx) != 3 || w != 256 || h < 192) { fclose(f); return 0; }
     fgetc(f);
-    for (int i = 0; i < 256 * 192; i++) { int r = fgetc(f), g = fgetc(f), b = fgetc(f); if (b < 0) { fclose(f); return 0; } g_art[i] = RGB(r, g, b); }
+    unsigned long soma = 0;
+    for (int i = 0; i < 256 * 192; i++) { int r = fgetc(f), g = fgetc(f), b = fgetc(f); if (b < 0) { fclose(f); return 0; } g_art[i] = RGB(r, g, b); soma += r + g + b; }
     fclose(f);
+    if (soma < 256 * 192) { remove(g_art_path); return 0; } /* imagem preta (captura de versões antigas, no meio do vídeo): captura de novo */
     return g_art_ok = 1;
 }
 static int g_art_allowed = 1;
 static void start_art_capture(void) {
     if (g_art_pid || !g_self[0] || !g_art_allowed) return;
+    if (g_ext && !g_game_ready) return; /* a prévia sai do jogo gerado: espera o preparo */
     /* outra captura em andamento (outro launcher aberto)? */
     char tmp[1300]; struct stat st; snprintf(tmp, sizeof tmp, "%s.tmp", g_art_path);
     if (stat(tmp, &st) == 0 && time(NULL) - st.st_mtime < 90) return;
     const char *argv[] = {"ie3", "--capturar-titulo", g_art_path, "--config", g_cfg_path, NULL};
-    g_art_pid = plat_spawn_quiet(g_self, argv);
+    g_art_pid = plat_spawn_quiet(g_ext ? g_game_exe : g_self, argv);
     if (g_art_pid) g_art_started = time(NULL);
 }
+/* ------------------------------------------------------------------ preparo (launcher separado) */
+static void check_game(void) {
+    g_game_ready = 0;
+    if (!g_ext || !plat_file_exists(g_game_exe)) return;
+    char p[1200]; snprintf(p, sizeof p, "%s" SEP "versao.txt", g_game_dir);
+    FILE *f = fopen(p, "r"); if (!f) return;
+    char v[64] = {0}; if (!fgets(v, sizeof v, f)) v[0] = 0;
+    fclose(f);
+    v[strcspn(v, "\r\n")] = 0;
+    g_game_ready = !strcmp(v, IE3_VERSION); /* gerado por outra versão do launcher: prepara de novo */
+}
+/* o preparo escreve "<porcentagem>\t<mensagem>" (porcentagem -1 = erro) */
+static void read_progress(void) {
+    FILE *f = fopen(g_prog_path, "r"); if (!f) return;
+    char line[300];
+    if (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        char *tab = strchr(line, '\t');
+        if (tab) {
+            *tab = 0;
+            int pct = atoi(line);
+            snprintf(g_prep_msg, sizeof g_prep_msg, "%s", tab + 1);
+            if (pct < 0) g_prep_failed = 1; else g_prep_pct = pct;
+        }
+    }
+    fclose(f);
+}
+static void start_prep(void) {
+    if (!g_ext || g_prep_pid || g_game_ready || !g_rom_ok) return;
+    static char py[1200], script[1200];
+#ifdef _WIN32
+    snprintf(py, sizeof py, "%s" SEP "ferramentas" SEP "python" SEP "python.exe", g_base);
+#else
+    snprintf(py, sizeof py, "%s", getenv("RECOMP_PYTHON") ? getenv("RECOMP_PYTHON") : "/usr/bin/python3");
+#endif
+    snprintf(script, sizeof script, "%s" SEP "ferramentas" SEP "fonte" SEP "tools" SEP "preparar.py", g_base);
+    g_prep_failed = 0; g_prep_pct = 0;
+    if (!plat_file_exists(py) || !plat_file_exists(script)) {
+        g_prep_failed = 1;
+        snprintf(g_prep_msg, sizeof g_prep_msg, "Faltam arquivos da pasta \"ferramentas\". Descompacte o zip da release de novo.");
+        return;
+    }
+    plat_mkdir(g_game_dir);
+    remove(g_prog_path);
+    snprintf(g_prep_msg, sizeof g_prep_msg, "Começando...");
+    const char *argv[] = {py, "-X", "utf8", "-I", script, g_cfg.rom, "--saida", g_game_dir,
+                          "--progresso", g_prog_path, "--versao", IE3_VERSION, NULL};
+    g_prep_pid = plat_spawn_logged(py, argv, g_prep_log, g_base);
+    if (!g_prep_pid) { g_prep_failed = 1; snprintf(g_prep_msg, sizeof g_prep_msg, "Não consegui iniciar o preparo."); }
+    g_prep_poll = 0;
+}
+static void tick_prep(void) {
+    if (!g_prep_pid) return;
+    double t = plat_now();
+    if (t - g_prep_poll < 0.2) return;
+    g_prep_poll = t;
+    read_progress();
+    if (!plat_proc_done(g_prep_pid)) return;
+    g_prep_pid = 0;
+    read_progress();
+    check_game();
+    if (g_game_ready) { g_prep_pct = 100; start_art_capture(); return; }
+    if (!g_prep_failed) snprintf(g_prep_msg, sizeof g_prep_msg, "O preparo parou sem terminar.");
+    g_prep_failed = 1;
+}
+void launcher_set_external(const char *base_dir) {
+    g_ext = 1;
+    snprintf(g_base, sizeof g_base, "%s", base_dir);
+    snprintf(g_game_dir, sizeof g_game_dir, "%s" SEP "jogo", g_base);
+    snprintf(g_game_exe, sizeof g_game_exe, "%s" SEP GAME_EXE, g_game_dir);
+    snprintf(g_prog_path, sizeof g_prog_path, "%s" SEP "progresso.txt", g_game_dir);
+    snprintf(g_prep_log, sizeof g_prep_log, "%s" SEP "preparo.log", g_game_dir);
+    check_game();
+}
+
 static void check_rom(void) {
     g_art_ok = 0;
     if (!g_cfg.rom[0]) { g_rom_ok = 0; snprintf(g_status, sizeof g_status, "Nenhuma ROM escolhida"); return; }
@@ -285,8 +379,10 @@ static void check_rom(void) {
     g_rom_ok = 1; snprintf(g_status, sizeof g_status, "ROM verificada (tradução BR T1.3)");
     art_path_for(g_romfile.sha1);
     if (!load_art()) start_art_capture();
+    start_prep(); /* launcher separado: na primeira vez gera o jogo a partir da ROM */
 }
 void launcher_tick(void) {
+    tick_prep();
     if (!g_rom_ok || g_art_ok || !g_art_pid) return;
     struct stat st;
     if (stat(g_art_path, &st) == 0 && load_art()) { plat_proc_done(g_art_pid); g_art_pid = 0; return; }
@@ -294,7 +390,7 @@ void launcher_tick(void) {
     if (time(NULL) - g_art_started > 60) { plat_proc_kill(g_art_pid); g_art_pid = 0; g_art_started = 0; }
 }
 void launcher_wait_art(int secs) {
-    for (int i = 0; i < secs * 10 && g_art_pid && !g_art_ok; i++) { launcher_tick(); plat_sleep(0.1); }
+    for (int i = 0; i < secs * 10 && (g_prep_pid || (g_art_pid && !g_art_ok)); i++) { launcher_tick(); plat_sleep(0.1); }
 }
 
 void launcher_init(const char *self_exe) {
@@ -320,8 +416,21 @@ static void change_row(int row, int d) {
 static int try_play(void) {
     if (!g_rom_ok) { g_tab = TAB_PLAY; return LAUNCH_CONTINUE; }
     config_save(&g_cfg, g_cfg_path);
+    if (g_ext && !g_game_ready) { start_prep(); return LAUNCH_CONTINUE; } /* PREPARAR / TENTAR DE NOVO */
     if (g_art_pid) { plat_proc_kill(g_art_pid); g_art_pid = 0; }
+    if (g_ext) {
+        /* abre o jogo gerado e fecha o launcher; o save e as opções ficam na pasta da release */
+        const char *argv[] = {g_game_exe, "--jogar", "--config", g_cfg_path, NULL};
+        if (plat_spawn_detached(g_game_exe, argv, g_base)) { snprintf(g_status, sizeof g_status, "Não consegui abrir o jogo"); return LAUNCH_CONTINUE; }
+        return LAUNCH_QUIT;
+    }
     return LAUNCH_PLAY;
+}
+static void set_rom(const char *path) {
+    snprintf(g_cfg.rom, sizeof g_cfg.rom, "%s", path);
+    g_art_pid = 0;
+    check_rom(); config_save(&g_cfg, g_cfg_path);
+    g_tab = TAB_PLAY; g_focus_panel = 0;
 }
 static int activate_tab(int t) {
     g_tab = t;
@@ -329,13 +438,7 @@ static int activate_tab(int t) {
     return LAUNCH_CONTINUE;
 }
 int launcher_event(int ev, const char *path, int mx, int my) {
-    if (ev == EV_DROP && path) {
-        snprintf(g_cfg.rom, sizeof g_cfg.rom, "%s", path);
-        g_art_pid = 0;
-        check_rom(); config_save(&g_cfg, g_cfg_path);
-        g_tab = TAB_PLAY; g_focus_panel = 0;
-        return LAUNCH_CONTINUE;
-    }
+    if (ev == EV_DROP && path) { set_rom(path); return LAUNCH_CONTINUE; }
     if (ev == EV_MOTION || ev == EV_CLICK) {
         g_hover_action = g_hover_arg = -1;
         for (int i = g_nhits - 1; i >= 0; i--) {
@@ -346,6 +449,7 @@ int launcher_event(int ev, const char *path, int mx, int my) {
         switch (g_hover_action) {
         case A_TAB: g_focus_panel = 0; return activate_tab(g_hover_arg);
         case A_PLAY: return try_play();
+        case A_PICK: { char f[1024]; if (!plat_pick_file(f, sizeof f)) set_rom(f); break; }
         case A_ROW: g_focus_panel = 1; g_row = g_hover_arg; change_row(g_row, 1); break;
         case A_DEC: g_focus_panel = 1; g_row = g_hover_arg; change_row(g_row, -1); break;
         case A_INC: g_focus_panel = 1; g_row = g_hover_arg; change_row(g_row, 1); break;
@@ -404,18 +508,40 @@ static void draw_play(int px, int py, int pw, int ph) {
     const char *base = rom;
     for (const char *q = rom; *q; q++) if ((*q == '/' || *q == '\\') && q[1]) base = q + 1;
     fit_left(FONT_BODY, base, cw, name, sizeof name);
-    text(FONT_BODY, lx, py + 82, name, C_TEXT, 255);
+    text(FONT_BODY, lx, py + 82, name, g_hover_action == A_PICK ? C_Y1 : C_TEXT, 255);
+    hit(lx, py + 78, cw, 28, A_PICK, 0); /* clicar no nome troca a ROM */
     rrect(lx, py + 116, 10, 10, 5, g_rom_ok ? C_OK : C_BAD, g_rom_ok ? C_OK : C_BAD, 255, 0, 0, 0);
     int sh = text_wrap(FONT_SMALL, lx + 18, py + 110, cw - 18, g_status, g_rom_ok ? C_OK : C_BAD, 255);
     if (!g_rom_ok) {
         int by = py + 116 + sh;
-        rrect(lx, by, cw, 74, 10, RGB(20, 50, 100), RGB(14, 36, 76), 150, RGB(120, 190, 255), 200, 1.5f);
-        text_wrap(FONT_SMALL, lx + 14, by + 12, cw - 28, "Arraste o arquivo .nds do jogo para esta janela", C_TEXT, 255);
+        int hp = g_hover_action == A_PICK;
+        rrect(lx, by, cw, 74, 10, hp ? RGB(34, 74, 140) : RGB(20, 50, 100), RGB(14, 36, 76), 150, RGB(120, 190, 255), hp ? 255 : 200, 1.5f);
+        text_wrap(FONT_SMALL, lx + 14, by + 12, cw - 28, "Arraste o arquivo .nds para esta janela ou clique aqui para procurar", C_TEXT, 255);
+        hit(lx, by, cw, 74, A_PICK, 0);
     }
     /* botão Jogar */
     int bx = lx, by = py + ph - 82, bw = cw, bh = 56;
     int hov = g_hover_action == A_PLAY, sel = !g_focus_panel && g_tab == TAB_PLAY;
-    if (g_rom_ok) {
+    if (g_rom_ok && g_ext && !g_game_ready) {
+        /* launcher separado: o jogo ainda não foi gerado desta ROM */
+        const char *msg = g_prep_pid || g_prep_failed ? g_prep_msg
+                        : "Na primeira vez o jogo é gerado a partir da sua ROM. Leva alguns minutos.";
+        text_wrap(FONT_SMALL, lx, by - 62, cw, msg, g_prep_failed ? C_BAD : C_DIM, 255);
+        if (g_prep_pid) {
+            rrect(bx, by, bw, bh, 28, RGB(40, 60, 100), RGB(28, 44, 76), 255, RGB(120, 170, 230), 160, 1.5f);
+            int fw = (bw - 8) * g_prep_pct / 100;
+            if (fw > 40) rrect(bx + 4, by + 4, fw, bh - 8, 24, C_Y1, C_Y2, 255, 0, 0, 0);
+            char t[32]; snprintf(t, sizeof t, "%d%%", g_prep_pct);
+            text_outline(FONT_H, bx + (bw - text_w(FONT_H, t)) / 2, by + 13, t, C_NAVY, 2, 200);
+            text(FONT_H, bx + (bw - text_w(FONT_H, t)) / 2, by + 13, t, C_TEXT, 255);
+        } else {
+            const char *lbl = g_prep_failed ? "TENTAR DE NOVO" : "PREPARAR";
+            if (sel || hov) rrect(bx - 4, by - 4, bw + 8, bh + 8, 30, C_Y1, C_Y2, 70, 0, 0, 0);
+            rrect(bx, by, bw, bh, 28, hov ? RGB(255, 244, 150) : C_Y1, C_Y2, 255, RGB(255, 250, 210), 200, 1.5f);
+            int f = text_w(FONT_H, lbl) > bw - 30 ? FONT_MENU : FONT_H;
+            text(f, bx + (bw - text_w(f, lbl)) / 2, by + (f == FONT_H ? 13 : 17), lbl, C_NAVY, 255);
+        }
+    } else if (g_rom_ok) {
         if (sel || hov) rrect(bx - 4, by - 4, bw + 8, bh + 8, 30, C_Y1, C_Y2, 70, 0, 0, 0);
         rrect(bx, by, bw, bh, 28, hov ? RGB(255, 244, 150) : C_Y1, C_Y2, 255, RGB(255, 250, 210), 200, 1.5f);
         bolt_icon(bx + 52, by + 15, 26, C_NAVY, 255);
@@ -441,7 +567,8 @@ static void draw_play(int px, int py, int pw, int ph) {
     } else {
         rrect(ax, ay, aw, ah, 6, RGB(16, 40, 84), RGB(8, 22, 52), 255, 0, 0, 0);
         bolt_icon(ax + aw / 2 - 20, ay + 70, 40, RGB(90, 150, 230), 200);
-        const char *m = !g_rom_ok ? "A tela título aparece aqui" : g_art_pid ? "Preparando a prévia..." : "Prévia indisponível";
+        const char *m = !g_rom_ok ? "A tela título aparece aqui" : g_art_pid ? "Preparando a prévia..."
+                      : g_ext && !g_game_ready ? "A prévia aparece depois do preparo" : "Prévia indisponível";
         text(FONT_SMALL, ax + (aw - text_w(FONT_SMALL, m)) / 2, ay + 140, m, C_DIM, 255);
         if (!g_rom_ok) text(FONT_SMALL, ax + (aw - text_w(FONT_SMALL, "quando a ROM for verificada")) / 2, ay + 160, "quando a ROM for verificada", C_DIM, 255);
     }
@@ -502,7 +629,7 @@ static void draw_about(int px, int py, int pw) {
     int x = px + 26, w = pw - 52, y = py + 60;
     y += text_wrap(FONT_BODY, x, y, w, "Recompilação estática de Inazuma Eleven 3: Ogros ao Ataque! (Nintendo DS). O código do jogo foi traduzido de ARM para C e compilado como um programa nativo do PC. Não é emulação: a sua ROM fornece os dados do jogo (gráficos, textos e sons) e o executável confere se ela é a versão certa.", C_TEXT, 255) + 10;
     y += text_wrap(FONT_SMALL, x, y, w, "Este projeto não inclui nenhum arquivo do jogo: você precisa da sua própria cópia. A tradução BR é do Grupo The Ogre Traduction / CyberLife.", C_DIM, 255) + 10;
-    text_wrap(FONT_SMALL, x, y, w, "Versão de testes: os vídeos ainda são pulados e algumas cenas podem travar.", C_Y1, 255);
+    text_wrap(FONT_SMALL, x, y, w, "Versão de testes: algumas cenas podem travar e o 3D ainda não tem sombras.", C_Y1, 255);
 }
 
 void launcher_draw(uint32_t *fb) {
@@ -560,6 +687,6 @@ void launcher_draw(uint32_t *fb) {
     const char *hint = g_focus_panel ? "Cima/baixo: opção    Esquerda/direita: mudar    Esc: voltar ao menu"
                                      : "Cima/baixo: menu    Enter: escolher    Esc: sair    Mouse também funciona";
     text(FONT_SMALL, 40, 508, hint, C_DIM, 230);
-    const char *ver = "v0.1 · versão de testes";
+    const char *ver = "v" IE3_VERSION " · versão de testes";
     text(FONT_SMALL, W - 40 - text_w(FONT_SMALL, ver), 508, ver, C_DIM, 180);
 }

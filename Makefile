@@ -8,7 +8,7 @@ BUILD ?= build
 EXE ?=
 GEN = build/gen
 GEN_SRCS = $(wildcard $(GEN)/*.c)
-RT_SRCS = runtime/runtime.c runtime/thumb.c runtime/arm_interp.c runtime/threads.c runtime/video.c runtime/gx.c runtime/snd.c runtime/rom.c runtime/platform.c runtime/hostfiber.c runtime/config.c runtime/launcher.c runtime/main.c
+RT_SRCS = runtime/runtime.c runtime/thumb.c runtime/arm_interp.c runtime/threads.c runtime/video.c runtime/gx.c runtime/snd.c runtime/rom.c runtime/platform.c runtime/hostfiber.c runtime/config.c runtime/launcher.c runtime/launcher_sdl.c runtime/main.c
 OBJS = $(patsubst %.c,$(BUILD)/obj/%.o,$(notdir $(GEN_SRCS))) $(patsubst %.c,$(BUILD)/obj/rt_%.o,$(notdir $(RT_SRCS)))
 
 all: $(BUILD)/ie3$(EXE)
@@ -27,7 +27,7 @@ $(BUILD)/obj/rt_%.o: runtime/%.c $(wildcard runtime/*.h)
 ifeq ($(WIN),1)
 # Windows (MinGW): SDL2 do pacote "devel mingw"; -mwindows não abre console (WIN_CONSOLE=1 abre, para ver o log)
 override CFLAGS += -DHAVE_SDL2 -I$(SDL_DIR)/include -I$(SDL_DIR)/include/SDL2 -Dmain=SDL_main
-LDLIBS += -L$(SDL_DIR)/lib -lmingw32 -lSDL2main -lSDL2 $(if $(WIN_CONSOLE),-mconsole,-mwindows) -static-libgcc -Wl,--stack,67108864
+LDLIBS += -L$(SDL_DIR)/lib -lmingw32 -lSDL2main -lSDL2 -lcomdlg32 $(if $(WIN_CONSOLE),-mconsole,-mwindows) -static-libgcc -Wl,--stack,67108864
 # ícone, manifesto e dados de versão do .exe
 WINDRES ?= $(patsubst %gcc,%windres,$(CC))
 OBJS += $(BUILD)/obj/ie3_res.o
@@ -52,6 +52,13 @@ endif
 windows:
 	$(MAKE) WIN=1 CC=x86_64-w64-mingw32-gcc BUILD=build-win EXE=.exe CFLAGS="-O1 -w -fno-strict-aliasing -fwrapv" SDL_DIR=$(SDL_DIR)
 
+# o launcher sozinho (sem o jogo): o que a release traz pronto. make launcher SDL=1
+LAUNCHER_SRCS = runtime/launcher.c runtime/launcher_sdl.c runtime/launcher_main.c runtime/config.c runtime/platform.c runtime/rom.c
+launcher: $(BUILD)/launcher$(EXE)
+$(BUILD)/launcher$(EXE): $(LAUNCHER_SRCS) $(wildcard runtime/*.h)
+	@mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -Iruntime -o $@ $(LAUNCHER_SRCS) $(LDLIBS)
+
 clean:
 	rm -rf build/obj build/ie3 build-win
-.PHONY: all gen clean windows
+.PHONY: all gen clean windows launcher

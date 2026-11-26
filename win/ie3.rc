@@ -1,7 +1,7 @@
 // Recursos do ie3.exe: ícone, manifesto e dados de versão (aparecem em Propriedades > Detalhes)
 #include <winver.h>
-#define IE3_VER 0,1,0,0
-#define IE3_VER_STR "0.1.0"
+#define IE3_VER 0,3,0,0
+#define IE3_VER_STR "0.3.0"
 
 1 ICON "ie3.ico"
 1 24 "ie3.manifest"
