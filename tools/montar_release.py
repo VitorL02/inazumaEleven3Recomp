@@ -154,6 +154,33 @@ def main():
     for pdb in glob.glob(os.path.join(top, "*.pdb")):
         os.remove(pdb)
     shutil.copy2(os.path.join(sdlr, "bin", "SDL2.dll"), top)
+
+    # Biblioteca C do Windows já pronta (ferramentas/crt). Sem ela o zig monta o MinGW-w64 e o
+    # compiler_rt no PC do usuário na primeira ligação, e no Windows isso chegou a travar.
+    # Liga um programa vazio aqui, lê a linha do lld-link (ZIG_VERBOSE_LINK) e guarda os .obj/.lib
+    # que vieram do cache do zig; o preparar.py liga o jogo chamando "zig lld-link" com eles.
+    crt = os.path.join(fer, "crt")
+    os.makedirs(crt)
+    vazio = os.path.join(tmp, "vazio.c")
+    with open(vazio, "w") as f:
+        f.write("int main(void) { return 0; }\n")
+    r = subprocess.run([zh, "cc", "-target", "x86_64-windows-gnu", "-O1", vazio, "-o", os.path.join(tmp, "vazio.exe"),
+                        "-lcomdlg32", "-Wl,--subsystem,windows"], env=dict(env, ZIG_VERBOSE_LINK="1"),
+                       capture_output=True, text=True, check=True)
+    linha = [l for l in r.stderr.splitlines() if l.startswith("lld-link ")][-1].split()
+    zc = os.path.join(tmp, "zc")
+    libs = []
+    for a in linha:
+        p = a if os.path.isabs(a) else os.path.join(os.path.dirname(vazio), a)
+        if a.endswith((".obj", ".lib")) and os.path.realpath(p).startswith(os.path.realpath(zc)) and not a.endswith("vazio.obj"):
+            nome = os.path.basename(a)
+            assert nome not in libs, nome
+            shutil.copy2(p, os.path.join(crt, nome))
+            libs.append(nome)
+    assert "crt2.obj" in libs and "libmingw32.lib" in libs, libs
+    with open(os.path.join(crt, "ligacao.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(libs) + "\n")
+    shutil.copy2(res, os.path.join(crt, "ie3.res"))  # ícone e versão do ie3.exe (o zig rc não roda no PC do usuário)
     with open(os.path.join(top, "LEIA-ME.txt"), "w", encoding="utf-8", newline="\r\n") as f:
         f.write(LEIA.format(versao=versao))
 

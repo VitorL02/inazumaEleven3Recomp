@@ -75,6 +75,7 @@ def args():
     o["saida"] = o["saida"] or (os.path.join(os.path.dirname(ferr), "jogo") if na_release else os.path.join(FONTE, "build-local"))
     o["zig"] = o["zig"] or os.path.join(ferr, "zig", "zig.exe" if os.name == "nt" else "zig")
     o["sdl"] = o["sdl"] or os.path.join(ferr, "sdl2")
+    o["ferr"] = ferr
     return o
 
 
@@ -134,8 +135,10 @@ def compilar(o, trab):
     # Na primeira ligação o zig monta a biblioteca C do Windows (MinGW-w64) e o compiler_rt a partir do
     # código-fonte, o que leva minutos. Um programa vazio ligado em paralelo já deixa isso no cache
     # enquanto os arquivos do jogo compilam; a ligação final fica rápida.
+    crt = os.path.join(o["ferr"], "crt")
+    usa_crt = win and os.path.isfile(os.path.join(crt, "ligacao.txt"))
     aquecer = None
-    if win:
+    if win and not usa_crt:
         vazio = os.path.join(obj, "aquecer.c")
         with open(vazio, "w") as f:
             f.write("int main(void) { return 0; }\n")
@@ -168,10 +171,14 @@ def compilar(o, trab):
     if win:
         res = os.path.join(obj, "ie3.res")  # ícone, manifesto e dados de versão; o lld liga o .res direto
         progresso(97, "Preparando o ícone do executável")
-        try:  # o ícone é opcional: se o zig rc travar ou falhar, segue sem ele
+        if usa_crt:
+            shutil.copy2(os.path.join(crt, "ie3.res"), res)
+            r = subprocess.CompletedProcess([], 0)
+        else:
+          try:  # o ícone é opcional: se o zig rc travar ou falhar, segue sem ele
             r = subprocess.run([zig, "rc", "/c", "65001", "ie3.rc", res], capture_output=True, text=True,
                                cwd=os.path.join(FONTE, "win"), stdin=subprocess.DEVNULL, timeout=120)
-        except subprocess.TimeoutExpired:
+          except subprocess.TimeoutExpired:
             r = None
         if r and r.returncode == 0 and os.path.exists(res):
             objs.append(res)
@@ -183,6 +190,14 @@ def compilar(o, trab):
                             os.path.join(sdl, "lib", "libSDL2.dll.a"),  # SDL2.dll (não a libSDL2.a estática)
                             "-lcomdlg32",  # janela de escolher a ROM do launcher
                             "-Wl,--subsystem,windows", "-Wl,--stack,67108864", "-s"]
+        if usa_crt:
+            # liga direto com o lld, usando a biblioteca C do Windows que já vem pronta na release
+            libs = [os.path.join(crt, n) for n in open(os.path.join(crt, "ligacao.txt"), encoding="utf-8").read().split()]
+            link = [zig, "lld-link", "-lldmingw", "-ERRORLIMIT:0", "-NOLOGO", "-MLLVM:-float-abi=hard", "-STACK:67108864",
+                    "-BASE:5368709120", "-BUILD-ID:NO", "-MACHINE:X64", "-BREPRO", "-OUT:" + exe,
+                    "-IMPLIB:" + os.path.join(obj, "ie3.lib"), *objs,
+                    os.path.join(sdl, "lib", "libSDL2main.a"), os.path.join(sdl, "lib", "libSDL2.dll.a"),
+                    "-SUBSYSTEM:windows,6.0", "-ALTERNATENAME:__image_base__=__ImageBase", *libs]
     else:
         exe = os.path.join(o["saida"], "ie3")
         libs = subprocess.run(["sdl2-config", "--libs"], capture_output=True, text=True).stdout.split()
