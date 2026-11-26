@@ -85,9 +85,9 @@ O `.exe` leva ícone, dados de versão (Propriedades > Detalhes) e manifesto (`w
 
 ### Com o RecompLauncher
 
-O projeto traz um [`recomplauncher.json`](recomplauncher.json), e o build copia esse arquivo para `build/` e `build-win/`, ao lado do executável.
-Como o executável é gerado na sua máquina, adicione a pasta pelo **Bring Your Recomps** (nas configurações do [RecompLauncher](https://github.com/elripalda/RecompLauncher)) e escolha **Keep untracked**: as releases deste projeto não têm executável para baixar.
-Aí o RecompLauncher pede a sua ROM, mostra as opções de vídeo na página do jogo e começa o jogo direto, sem o launcher próprio. Tudo que o jogo escreve (save, `ie3recomp.ini` e o log em `logs/`) fica na pasta `recompdata` do jogo.
+A release para Windows traz um `recomplauncher.json` com um passo de preparo (`prepare`): o [RecompLauncher](https://github.com/elripalda/RecompLauncher) baixa a release, pede a sua ROM, gera o jogo em `jogo/` (o mesmo `tools/preparar.py` do launcher próprio, sem janela, com a barra de progresso dele) e depois abre `jogo/ie3.exe` direto, com as opções de vídeo na página do jogo. Tudo que o jogo escreve (save, `ie3recomp.ini` e o log em `logs/`) fica na pasta de dados do RecompLauncher.
+
+Para quem compila na mão, o [`recomplauncher.json`](recomplauncher.json) do repositório é copiado para `build/` e `build-win/` ao lado do executável: adicione a pasta pelo **Bring Your Recomps** e escolha **Keep untracked**.
 
 As opções que ele usa também funcionam sozinhas: `--game <rom>` (a ROM) e `--data <pasta>` (onde ficam save, configuração e log; sem ela, tudo fica como antes, ao lado do executável).
 O jogo sai com o código 2 quando não consegue abrir a ROM.
@@ -126,12 +126,14 @@ O executável só lê a ROM que você fornece: o ARM9 vai para a memória compri
 
 ## Nota legal
 
-- Este é um projeto de fãs, sem fins lucrativos e sem ligação com a LEVEL-5 ou a Nintendo. Inazuma Eleven é marca da LEVEL-5.
-- O repositório e as releases trazem **só ferramentas e código próprio** (recompilador, runtime, launcher). Nenhum arquivo do jogo, nenhum código do jogo traduzido e nenhum executável com o jogo dentro.
-- Para jogar você precisa de uma cópia do jogo que seja sua, extraída do seu próprio cartucho. Não peça nem compartilhe ROMs ou executáveis gerados (o `.exe` gerado contém o código do jogo).
+- **Projeto de fãs, feito para preservar o jogo e permitir jogá-lo em PCs atuais.** Não tem fins lucrativos: nada aqui é ou foi vendido, não há doações atreladas e o projeto não tem ligação com a LEVEL-5 ou a Nintendo. Inazuma Eleven é marca da LEVEL-5; Nintendo DS é marca da Nintendo.
+- **O recomp não funciona sem a ROM.** Para jogar você precisa da sua própria cópia do jogo, extraída do seu cartucho. O launcher confere a ROM e todo o conteúdo do jogo (código, gráficos, textos, sons e vídeos) é lido dela, no seu PC.
+- O repositório e as releases trazem **só código e ferramentas**: o recompilador, o runtime e o launcher (código próprio), mais Python, Zig, SDL2 e a biblioteca C do MinGW-w64, com as licenças deles em `ferramentas/licencas`. Nenhum arquivo do jogo, nenhum código do jogo (nem traduzido para C) e nenhum executável com o jogo dentro.
+- O jogo é gerado na máquina de cada pessoa, a partir da ROM dela. A pasta `jogo` que o launcher cria contém o código do jogo: **não compartilhe essa pasta, o executável gerado nem ROMs**, e não peça ROMs nas issues.
 - O projeto não quebra proteção de cópia: lê a ROM do jeito que o próprio console leria.
 - A tradução BR é do grupo The Ogre Traduction / CyberLife; os créditos dela aparecem no jogo.
-- Isto é um resumo de boas práticas de projetos de recompilação, não orientação jurídica.
+- Se você é detentor de direitos e tem alguma objeção, abra uma issue: o projeto atende pedidos de remoção.
+- Este resumo descreve as práticas do projeto e não é orientação jurídica.
 
 ## Ferramentas de análise
 

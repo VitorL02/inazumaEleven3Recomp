@@ -12,6 +12,7 @@ Uso: python -X utf8 -I tools/preparar.py <rom.nds> [opções]
   --tarefas N         compilações em paralelo (padrão: núcleos do processador)
   --progresso <arq>   escreve "<porcentagem>\t<mensagem>" neste arquivo (o launcher mostra a barra);
                       -1 na porcentagem quer dizer erro
+  --rl                imprime "progress <0 a 1> <mensagem>" (formato do passo "prepare" do RecompLauncher)
   --versao <v>        grava <saida>/versao.txt no fim (o launcher confere se o jogo é desta versão)
 """
 import concurrent.futures, glob, hashlib, os, shutil, subprocess, sys, time
@@ -27,9 +28,12 @@ RT = ["runtime", "thumb", "arm_interp", "threads", "video", "gx", "snd", "rom", 
 
 
 PROGRESSO = None
+RL = False
 
 
 def progresso(pct, msg):
+    if RL and pct >= 0:
+        print(f"\nprogress {pct / 100:.2f} {msg}", flush=True)
     if not PROGRESSO:
         return
     tmp = PROGRESSO + ".tmp"
@@ -56,7 +60,9 @@ def falha(msg):
 
 
 def args():
-    a = sys.argv[1:]
+    global RL
+    a = [x for x in sys.argv[1:] if x != "--rl"]
+    RL = len(a) != len(sys.argv) - 1
     if not a or a[0] in ("-h", "--help"):
         print(__doc__); sys.exit(0 if a else 1)
     o = {"rom": a[0], "saida": None, "zig": None, "sdl": None,
@@ -166,7 +172,7 @@ def compilar(o, trab):
             progresso(97, f"Preparando a biblioteca do Windows (só na primeira vez; {int(time.time() - t1)} s)")
             time.sleep(1)
     print(f"  biblioteca do Windows pronta ({int(time.time() - t1)} s de espera)", flush=True)
-    progresso(98, "Montando o executável")
+    progresso(96, "Montando o executável")
     os.makedirs(o["saida"], exist_ok=True)
     if win:
         res = os.path.join(obj, "ie3.res")  # ícone, manifesto e dados de versão; o lld liga o .res direto
@@ -254,10 +260,13 @@ def main():
     if o["versao"]:
         with open(os.path.join(o["saida"], "versao.txt"), "w", encoding="utf-8") as f:
             f.write(o["versao"] + "\n")
+        # marca por versão: o RecompLauncher ("done") refaz o preparo quando a release muda
+        with open(os.path.join(o["saida"], f"pronto-{o['versao']}.txt"), "w", encoding="utf-8") as f:
+            f.write("ok\n")
     progresso(100, "Pronto")
     # rodando sozinho (sem o launcher): deixa a ROM já escolhida no .ini
     ini = os.path.join(o["saida"], "ie3recomp.ini")
-    if not PROGRESSO and not os.path.exists(ini):
+    if not PROGRESSO and not RL and not os.path.exists(ini):
         with open(ini, "w", encoding="utf-8") as f:
             f.write(f"rom={rom}\n")
     print(f"\nPronto: {exe}\nOs arquivos em {trab} podem ser apagados (contêm o código do jogo gerado da sua ROM).")

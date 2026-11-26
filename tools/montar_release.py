@@ -181,6 +181,20 @@ def main():
     with open(os.path.join(crt, "ligacao.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(libs) + "\n")
     shutil.copy2(res, os.path.join(crt, "ie3.res"))  # ícone e versão do ie3.exe (o zig rc não roda no PC do usuário)
+    # recomplauncher.json da release: o RecompLauncher roda o preparo (prepare) e depois jogo/ie3.exe
+    import json
+    m = json.load(open(os.path.join(RAIZ, "recomplauncher.json"), encoding="utf-8"))
+    v = versao.lstrip("v")
+    m["start"]["program"] = ["jogo/ie3.exe"]
+    m["prepare"] = {
+        "program": ["ferramentas/python/python.exe"],
+        "args": ["-X", "utf8", "-I", "{install}/ferramentas/fonte/tools/preparar.py", "{game}",
+                 "--saida", "{install}/jogo", "--versao", v, "--rl"],
+        "label": "Gerando o jogo a partir da sua ROM (alguns minutos, só na primeira vez)",
+        "done": [f"{{install}}/jogo/pronto-{v}.txt"],
+    }
+    with open(os.path.join(top, "recomplauncher.json"), "w", encoding="utf-8") as f:
+        json.dump(m, f, ensure_ascii=False, indent=2)
     with open(os.path.join(top, "LEIA-ME.txt"), "w", encoding="utf-8", newline="\r\n") as f:
         f.write(LEIA.format(versao=versao))
 
